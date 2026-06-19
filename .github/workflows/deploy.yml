@@ -1,0 +1,75 @@
+name: Test and deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: english-agent-production
+  cancel-in-progress: false
+
+jobs:
+  test-and-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Run tests
+        run: |
+          python3 -m unittest discover -s tests -v
+          python3 -m py_compile src/*.py
+
+      - name: Configure deployment SSH key
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
+        run: |
+          test -n "$DEPLOY_SSH_KEY"
+          test -n "$DEPLOY_HOST"
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/english_agent_deploy
+          chmod 600 ~/.ssh/english_agent_deploy
+          ssh-keyscan -p "${DEPLOY_PORT:-22}" "$DEPLOY_HOST" >> ~/.ssh/known_hosts
+
+      - name: Build deployment package
+        run: |
+          tar -czf /tmp/english-agent.tgz \
+            --exclude='.git' \
+            --exclude='.env' \
+            --exclude='data/*.db' \
+            --exclude='work' \
+            .
+
+      - name: Upload and restart
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
+        run: |
+          PORT="${DEPLOY_PORT:-22}"
+          USER="${DEPLOY_USER:-ubuntu}"
+          SSH="ssh -i ~/.ssh/english_agent_deploy -p $PORT -o BatchMode=yes"
+          scp -i ~/.ssh/english_agent_deploy -P "$PORT" -o BatchMode=yes \
+            /tmp/english-agent.tgz "$USER@$DEPLOY_HOST:/tmp/english-agent.tgz"
+          $SSH "$USER@$DEPLOY_HOST" 'set -eu
+            APP=/home/ubuntu/english-agent
+            mkdir -p "$APP"
+            tar -xzf /tmp/english-agent.tgz -C "$APP"
+            rm -f /tmp/english-agent.tgz
+            cd "$APP"
+            test -f .env
+            chmod 600 .env
+            python3 -m unittest discover -s tests -v
+            python3 -m py_compile src/*.py
+            sudo systemctl restart english-agent
+            sleep 2
+            systemctl is-active --quiet english-agent
+            curl --fail --silent http://127.0.0.1:8080/api/health >/dev/null'

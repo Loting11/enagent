@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AI English Agent</title>
+  <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="/config.css">
+</head>
+<body>
+  <main>
+    <header>
+      <div><span class="eyebrow">WECOM LEARNING AGENT</span><h1>AI 英语订阅助手</h1></div>
+      <div class="header-actions"><button id="openWecom">企微配置</button><button id="runPush" class="primary">向订阅用户推送今日知识</button></div>
+    </header>
+
+    <section id="stats" class="stats"></section>
+
+    <section class="workspace">
+      <aside class="panel users-panel">
+        <div class="panel-title"><h2>测试用户</h2><button id="addUser">＋ 添加</button></div>
+        <div id="users" class="users"></div>
+      </aside>
+
+      <section class="panel chat-panel">
+        <div id="empty" class="empty">选择或添加一个用户，开始模拟企微对话。</div>
+        <div id="chat" hidden>
+          <div class="chat-head"><div><h2 id="chatName"></h2><span id="chatStatus"></span></div><button id="pushOne">立即推送</button></div>
+          <div id="messages" class="messages"></div>
+          <form id="messageForm" class="composer">
+            <input id="messageInput" placeholder="试试：开始、来一个、A、难一点，或提出问题" autocomplete="off">
+            <button class="primary">发送</button>
+          </form>
+          <div class="quick"><span>快捷：</span><button data-text="开始">开始</button><button data-text="来一个">来一个</button><button data-text="A">A</button><button data-text="B">B</button><button data-text="暂停">暂停</button></div>
+        </div>
+      </section>
+    </section>
+  </main>
+  <dialog id="wecomDialog">
+    <form id="wecomForm">
+      <div class="dialog-head"><div><span class="eyebrow">INTEGRATION</span><h2>企业微信配置</h2></div><button type="button" id="closeWecom" aria-label="关闭">×</button></div>
+      <div id="securityNotice" class="notice"></div>
+      <div class="form-grid">
+        <label>企业 ID（CorpID）<input name="corp_id" autocomplete="off" placeholder="wwxxxxxxxxxxxxxxxx"></label>
+        <label>应用 AgentId<input name="agent_id" autocomplete="off" placeholder="例如 1000002"></label>
+        <label>测试员工 UserID<input name="test_user_id" autocomplete="off" placeholder="通讯录中的账号"></label>
+        <label>应用 Secret<input name="secret" type="password" autocomplete="new-password"><small data-status="secret"></small></label>
+        <label>回调 Token<input name="token" type="password" autocomplete="new-password"><small data-status="token"></small></label>
+        <label>EncodingAESKey<input name="encoding_aes_key" type="password" autocomplete="new-password" maxlength="43"><small data-status="encoding_aes_key"></small></label>
+      </div>
+      <div class="callback"><span>后续回调路径</span><code id="callbackUrl"></code></div>
+      <div class="dialog-actions"><button type="button" id="cancelWecom">取消</button><button class="primary" type="submit">保存配置</button></div>
+    </form>
+  </dialog>
+  <div id="toast"></div>
+  <script src="/app.js"></script>
+</body>
+</html>

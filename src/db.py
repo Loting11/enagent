@@ -1,0 +1,98 @@
+import sqlite3
+from pathlib import Path
+
+
+SCHEMA = """
+CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    channel_user_id TEXT UNIQUE NOT NULL,
+    name TEXT NOT NULL,
+    subscription_status TEXT NOT NULL DEFAULT 'pending',
+    preferred_hour INTEGER NOT NULL DEFAULT 9,
+    difficulty INTEGER NOT NULL DEFAULT 1,
+    current_content_id INTEGER,
+    streak INTEGER NOT NULL DEFAULT 0,
+    last_push_date TEXT,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS content_items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    term TEXT UNIQUE NOT NULL,
+    meaning TEXT NOT NULL,
+    explanation TEXT NOT NULL,
+    example_en TEXT NOT NULL,
+    example_cn TEXT NOT NULL,
+    question TEXT NOT NULL,
+    options_json TEXT NOT NULL,
+    answer TEXT NOT NULL,
+    difficulty INTEGER NOT NULL,
+    topic TEXT NOT NULL,
+    enabled INTEGER NOT NULL DEFAULT 1
+);
+CREATE TABLE IF NOT EXISTS messages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    direction TEXT NOT NULL,
+    text TEXT NOT NULL,
+    kind TEXT NOT NULL DEFAULT 'text',
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS learning_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    content_id INTEGER NOT NULL,
+    event_type TEXT NOT NULL,
+    answer TEXT,
+    is_correct INTEGER,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS push_jobs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    content_id INTEGER,
+    status TEXT NOT NULL,
+    error TEXT,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+"""
+
+
+class Database:
+    def __init__(self, path):
+        self.path = Path(path)
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+
+    def connect(self):
+        conn = sqlite3.connect(self.path, timeout=10)
+        conn.row_factory = sqlite3.Row
+        return conn
+
+    def initialize(self, content):
+        import json
+        with self.connect() as conn:
+            conn.executescript(SCHEMA)
+            for item in content:
+                conn.execute(
+                    """INSERT OR IGNORE INTO content_items
+                    (term, meaning, explanation, example_en, example_cn, question,
+                     options_json, answer, difficulty, topic)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (item["term"], item["meaning"], item["explanation"],
+                     item["example_en"], item["example_cn"], item["question"],
+                     json.dumps(item["options"], ensure_ascii=False), item["answer"],
+                     item["difficulty"], item["topic"]),
+                )
+
+    def all(self, sql, params=()):
+        with self.connect() as conn:
+            return [dict(row) for row in conn.execute(sql, params).fetchall()]
+
+    def one(self, sql, params=()):
+        with self.connect() as conn:
+            row = conn.execute(sql, params).fetchone()
+            return dict(row) if row else None
+
+    def execute(self, sql, params=()):
+        with self.connect() as conn:
+            cur = conn.execute(sql, params)
+            return cur.lastrowid
