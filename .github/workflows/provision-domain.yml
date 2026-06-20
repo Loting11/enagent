@@ -1,0 +1,76 @@
+name: Provision en.soundfield.fun HTTPS
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  provision:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure SSH
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy
+          chmod 600 ~/.ssh/deploy
+          ssh-keyscan -p "${DEPLOY_PORT:-22}" "$DEPLOY_HOST" >> ~/.ssh/known_hosts
+
+      - name: Upload Nginx configurations
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
+        run: |
+          PORT="${DEPLOY_PORT:-22}"
+          USER="${DEPLOY_USER:-ubuntu}"
+          scp -i ~/.ssh/deploy -P "$PORT" \
+            deploy/nginx/en.soundfield.fun.http.conf \
+            "$USER@$DEPLOY_HOST:/tmp/en.soundfield.fun.http.conf"
+          scp -i ~/.ssh/deploy -P "$PORT" \
+            deploy/nginx/en.soundfield.fun.https.conf \
+            "$USER@$DEPLOY_HOST:/tmp/en.soundfield.fun.https.conf"
+
+      - name: Issue certificate and enable HTTPS
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
+        run: |
+          ssh -i ~/.ssh/deploy -p "${DEPLOY_PORT:-22}" \
+            "${DEPLOY_USER:-ubuntu}@$DEPLOY_HOST" 'set -eu
+              DOMAIN=en.soundfield.fun
+              SITE=/etc/nginx/sites-available/$DOMAIN
+              sudo mkdir -p /var/www/letsencrypt
+              sudo install -m 644 /tmp/en.soundfield.fun.http.conf "$SITE"
+              sudo ln -sfn "$SITE" "/etc/nginx/sites-enabled/$DOMAIN"
+              sudo nginx -t
+              sudo systemctl reload nginx
+              if ! sudo test -f "/etc/letsencrypt/live/$DOMAIN/fullchain.pem"; then
+                sudo certbot certonly --webroot \
+                  --webroot-path /var/www/letsencrypt \
+                  --domain "$DOMAIN" \
+                  --non-interactive --agree-tos --register-unsafely-without-email
+              fi
+              sudo install -m 644 /tmp/en.soundfield.fun.https.conf "$SITE"
+              sudo nginx -t
+              sudo systemctl reload nginx
+              ENV_FILE=/home/ubuntu/english-agent/.env
+              if grep -q "^TRUST_PROXY_HEADERS=" "$ENV_FILE"; then
+                sed -i "s/^TRUST_PROXY_HEADERS=.*/TRUST_PROXY_HEADERS=true/" "$ENV_FILE"
+              else
+                printf "\nTRUST_PROXY_HEADERS=true\n" >> "$ENV_FILE"
+              fi
+              chmod 600 "$ENV_FILE"
+              sudo systemctl restart english-agent
+              rm -f /tmp/en.soundfield.fun.http.conf /tmp/en.soundfield.fun.https.conf
+              curl --fail --silent --show-error \
+                --resolve "$DOMAIN:443:127.0.0.1" "https://$DOMAIN/api/health"'
