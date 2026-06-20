@@ -1,0 +1,46 @@
+name: Inspect production web server
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Configure SSH
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy
+          chmod 600 ~/.ssh/deploy
+          ssh-keyscan -p "${DEPLOY_PORT:-22}" "$DEPLOY_HOST" >> ~/.ssh/known_hosts
+
+      - name: Inspect services and Nginx
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
+        run: |
+          ssh -i ~/.ssh/deploy -p "${DEPLOY_PORT:-22}" \
+            "${DEPLOY_USER:-ubuntu}@$DEPLOY_HOST" 'set -u
+              echo "== services =="
+              systemctl is-active nginx || true
+              systemctl is-active english-agent || true
+              echo "== binaries =="
+              command -v nginx || true
+              command -v certbot || true
+              nginx -v 2>&1 || true
+              certbot --version 2>&1 || true
+              echo "== listeners =="
+              sudo ss -ltnp | sed -n "1,80p"
+              echo "== enabled sites =="
+              sudo ls -la /etc/nginx/sites-enabled 2>&1 || true
+              echo "== nginx config =="
+              sudo nginx -T 2>&1 | sed -n "1,320p" || true'
