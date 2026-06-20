@@ -39,12 +39,14 @@ jobs:
           printf '%s\n' "$TLS_CERT" > /tmp/en.soundfield.fun.fullchain.pem
           printf '%s\n' "$TLS_KEY" > /tmp/en.soundfield.fun.key
           chmod 600 /tmp/en.soundfield.fun.key
+          ssh -i ~/.ssh/deploy -p "$PORT" "$USER@$DEPLOY_HOST" \
+            'mkdir -p /home/ubuntu/english-agent/.deploy && chmod 700 /home/ubuntu/english-agent/.deploy'
           scp -i ~/.ssh/deploy -P "$PORT" \
             deploy/nginx/en.soundfield.fun.https.conf \
-            "$USER@$DEPLOY_HOST:/tmp/en.soundfield.fun.https.conf"
+            "$USER@$DEPLOY_HOST:/home/ubuntu/english-agent/.deploy/"
           scp -i ~/.ssh/deploy -P "$PORT" \
             /tmp/en.soundfield.fun.fullchain.pem /tmp/en.soundfield.fun.key \
-            "$USER@$DEPLOY_HOST:/tmp/"
+            "$USER@$DEPLOY_HOST:/home/ubuntu/english-agent/.deploy/"
 
       - name: Install certificate and enable HTTPS
         env:
@@ -56,12 +58,13 @@ jobs:
             "${DEPLOY_USER:-ubuntu}@$DEPLOY_HOST" 'set -eu
               DOMAIN=en.soundfield.fun
               SITE=/etc/nginx/sites-available/$DOMAIN
+              TRANSFER=/home/ubuntu/english-agent/.deploy
               sudo mkdir -p /etc/nginx/ssl /var/www/letsencrypt
-              sudo install -m 644 /tmp/en.soundfield.fun.fullchain.pem \
+              sudo install -m 644 "$TRANSFER/en.soundfield.fun.fullchain.pem" \
                 /etc/nginx/ssl/en.soundfield.fun.fullchain.pem
-              sudo install -m 600 /tmp/en.soundfield.fun.key \
+              sudo install -m 600 "$TRANSFER/en.soundfield.fun.key" \
                 /etc/nginx/ssl/en.soundfield.fun.key
-              sudo install -m 644 /tmp/en.soundfield.fun.https.conf "$SITE"
+              sudo install -m 644 "$TRANSFER/en.soundfield.fun.https.conf" "$SITE"
               sudo ln -sfn "$SITE" "/etc/nginx/sites-enabled/$DOMAIN"
               sudo nginx -t
               sudo systemctl reload nginx
@@ -73,7 +76,6 @@ jobs:
               fi
               chmod 600 "$ENV_FILE"
               sudo systemctl restart english-agent
-              rm -f /tmp/en.soundfield.fun.https.conf \
-                /tmp/en.soundfield.fun.fullchain.pem /tmp/en.soundfield.fun.key
+              rm -rf "$TRANSFER"
               curl --fail --silent --show-error \
                 --resolve "$DOMAIN:443:127.0.0.1" "https://$DOMAIN/api/health"'
