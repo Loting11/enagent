@@ -42,5 +42,7 @@ jobs:
               sudo ss -ltnp | sed -n "1,80p"
               echo "== enabled sites =="
               sudo ls -la /etc/nginx/sites-enabled 2>&1 || true
+              echo "== recent ACME requests =="
+              sudo grep -F ".well-known/acme-challenge" /var/log/nginx/access.log | tail -30 || true
               echo "== nginx config =="
               sudo nginx -T 2>&1 | sed -n "1,320p" || true'
