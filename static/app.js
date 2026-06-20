@@ -75,13 +75,21 @@ async function openWecomConfig(){
   notice.textContent=secure?'当前为 HTTPS 安全连接，可以填写全部配置。':'当前为 HTTP：为避免密钥泄露，Secret、Token 和 AESKey 暂不可提交；域名 HTTPS 配置后会自动开放。';
   notice.className=`notice ${secure?'safe':'warning'}`;
   sensitiveFields.forEach(name=>wecomForm.elements[name].disabled=!secure);
-  document.querySelector('#callbackUrl').textContent=`https://你的域名${config.callback_path}`;
+  document.querySelector('#wecomStatus').innerHTML=`<span class="${config.callback_ready?'ready':''}">${config.callback_ready?'✓':'○'} 回调配置</span><span class="${config.send_ready?'ready':''}">${config.send_ready?'✓':'○'} 主动发送</span>`;
+  document.querySelector('#callbackUrl').textContent=secure?`${location.origin}${config.callback_path}`:`https://你的域名${config.callback_path}`;
+  const testButton=document.querySelector('#testWecom');
+  testButton.disabled=!secure||!config.send_ready||!config.test_user_id;
+  testButton.title=!secure?'请先启用 HTTPS':(!config.send_ready?'请先完成应用配置':'');
   wecomDialog.showModal();
 }
 
 document.querySelector('#openWecom').onclick=()=>openWecomConfig().catch(e=>toast(e.message));
 document.querySelector('#closeWecom').onclick=()=>wecomDialog.close();
 document.querySelector('#cancelWecom').onclick=()=>wecomDialog.close();
+document.querySelector('#testWecom').onclick=async()=>{
+  await api('/api/config/wecom/test',{method:'POST',body:'{}'});
+  toast('测试消息已发送到企微');
+};
 wecomForm.onsubmit=async e=>{
   e.preventDefault(); const body={};
   ['corp_id','agent_id','test_user_id',...sensitiveFields].forEach(name=>{

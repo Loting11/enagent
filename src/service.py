@@ -26,6 +26,21 @@ class EnglishAgentService:
     def get_user(self, user_id):
         return self.db.one("SELECT * FROM users WHERE id = ?", (user_id,))
 
+    def get_user_by_channel_id(self, channel_user_id):
+        return self.db.one(
+            "SELECT * FROM users WHERE channel_user_id = ?", (channel_user_id,)
+        )
+
+    def receive_from_channel(self, channel_user_id, text, name=None):
+        user = self.get_user_by_channel_id(channel_user_id)
+        if not user:
+            user_id = self.db.execute(
+                "INSERT INTO users (name, channel_user_id) VALUES (?, ?)",
+                ((name or channel_user_id).strip(), channel_user_id.strip()),
+            )
+            user = self.get_user(user_id)
+        return self.receive(user["id"], text)
+
     def users(self):
         return self.db.all("SELECT * FROM users ORDER BY id DESC")
 

@@ -54,6 +54,13 @@ CREATE TABLE IF NOT EXISTS push_jobs (
     error TEXT,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+CREATE TABLE IF NOT EXISTS callback_events (
+    event_key TEXT PRIMARY KEY,
+    status TEXT NOT NULL DEFAULT 'received',
+    error TEXT,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    processed_at TEXT
+);
 """
 
 
@@ -96,3 +103,19 @@ class Database:
         with self.connect() as conn:
             cur = conn.execute(sql, params)
             return cur.lastrowid
+
+    def claim_callback_event(self, event_key):
+        with self.connect() as conn:
+            cur = conn.execute(
+                "INSERT OR IGNORE INTO callback_events (event_key) VALUES (?)", (event_key,)
+            )
+            return cur.rowcount == 1
+
+    def finish_callback_event(self, event_key, error=None):
+        status = "failed" if error else "processed"
+        self.execute(
+            """UPDATE callback_events
+               SET status = ?, error = ?, processed_at = CURRENT_TIMESTAMP
+               WHERE event_key = ?""",
+            (status, error, event_key),
+        )

@@ -1,0 +1,16 @@
+[Unit]
+Description=WeCom English Learning Agent
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/english-agent
+ExecStart=/home/ubuntu/english-agent/.venv/bin/python src/app.py
+Restart=always
+RestartSec=3
+Environment=PORT=8080
+
+[Install]
+WantedBy=multi-user.target

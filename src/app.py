@@ -1,4 +1,5 @@
 import base64
+import hashlib
 import hmac
 import json
 import mimetypes
@@ -10,13 +11,14 @@ import tempfile
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 from agent import AgentService
-from channel import MockWeComChannel
+from channel import WeComChannel
 from content import DEMO_CONTENT
 from db import Database
 from service import EnglishAgentService
+from wecom import WeComCrypto, WeComError, parse_encrypted_xml, parse_message_xml
 
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -38,7 +40,7 @@ load_env()
 db_path = os.getenv("DB_PATH", str(ROOT / "data" / "english_agent.db"))
 db = Database(db_path)
 db.initialize(DEMO_CONTENT)
-service = EnglishAgentService(db, MockWeComChannel(db), AgentService())
+service = EnglishAgentService(db, WeComChannel(db), AgentService())
 
 WECOM_FIELDS = {
     "corp_id": ("WECOM_CORP_ID", False),
@@ -57,6 +59,14 @@ def wecom_config():
         result[field] = "" if sensitive else value
         result[f"{field}_configured"] = bool(value)
     result["callback_path"] = "/wecom/callback"
+    result["callback_ready"] = all(
+        os.getenv(key, "")
+        for key in ("WECOM_CORP_ID", "WECOM_TOKEN", "WECOM_ENCODING_AES_KEY")
+    )
+    result["send_ready"] = all(
+        os.getenv(key, "")
+        for key in ("WECOM_CORP_ID", "WECOM_AGENT_ID", "WECOM_SECRET")
+    )
     return result
 
 
@@ -105,6 +115,26 @@ def save_wecom_config(values, allow_sensitive=False):
     return wecom_config()
 
 
+def callback_crypto():
+    return WeComCrypto(
+        os.getenv("WECOM_TOKEN", ""),
+        os.getenv("WECOM_ENCODING_AES_KEY", ""),
+        os.getenv("WECOM_CORP_ID", ""),
+    )
+
+
+def process_wecom_message(event_key, message):
+    try:
+        if message.get("MsgType") == "text" and message.get("Content", "").strip():
+            service.receive_from_channel(
+                message.get("FromUserName", ""), message["Content"].strip()
+            )
+        db.finish_callback_event(event_key)
+    except Exception as exc:
+        db.finish_callback_event(event_key, str(exc)[:500])
+        print(f"WeCom callback processing error: {exc}")
+
+
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, fmt, *args):
         print(f"[{self.log_date_time_string()}] {fmt % args}")
@@ -113,6 +143,14 @@ class Handler(BaseHTTPRequestHandler):
         body = json.dumps(data, ensure_ascii=False).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _text(self, text, status=200):
+        body = text.encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "text/plain; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
@@ -147,14 +185,50 @@ class Handler(BaseHTTPRequestHandler):
         return False
 
     def _body(self):
+        return json.loads(self._raw_body().decode("utf-8") or "{}")
+
+    def _raw_body(self):
         length = int(self.headers.get("Content-Length", "0"))
-        return json.loads(self.rfile.read(length).decode("utf-8") or "{}")
+        return self.rfile.read(length)
+
+    def _wecom_verify(self, query):
+        encrypted = query.get("echostr", [""])[0]
+        signature = query.get("msg_signature", [""])[0]
+        timestamp = query.get("timestamp", [""])[0]
+        nonce = query.get("nonce", [""])[0]
+        crypto = callback_crypto()
+        crypto.verify(signature, timestamp, nonce, encrypted)
+        return crypto.decrypt(encrypted)
+
+    def _wecom_receive(self, query):
+        encrypted = parse_encrypted_xml(self._raw_body())
+        signature = query.get("msg_signature", [""])[0]
+        timestamp = query.get("timestamp", [""])[0]
+        nonce = query.get("nonce", [""])[0]
+        crypto = callback_crypto()
+        crypto.verify(signature, timestamp, nonce, encrypted)
+        plain_xml = crypto.decrypt(encrypted)
+        message = parse_message_xml(plain_xml)
+        expected_agent = os.getenv("WECOM_AGENT_ID", "")
+        if expected_agent and message.get("AgentID") and message["AgentID"] != expected_agent:
+            raise WeComError("企微 AgentID 不匹配")
+        if not message.get("FromUserName"):
+            raise WeComError("企微消息缺少发送者")
+        event_key = message.get("MsgId") or hashlib.sha256(plain_xml.encode("utf-8")).hexdigest()
+        if db.claim_callback_event(event_key):
+            threading.Thread(
+                target=process_wecom_message, args=(event_key, message), daemon=True
+            ).start()
+        return "success"
 
     def do_GET(self):
-        path = urlparse(self.path).path
+        parsed = urlparse(self.path)
+        path = parsed.path
         try:
             if path == "/api/health":
                 return self._json({"ok": True})
+            if path == "/wecom/callback":
+                return self._text(self._wecom_verify(parse_qs(parsed.query)))
             if not self._require_auth():
                 return
             if path == "/api/dashboard":
@@ -169,12 +243,17 @@ class Handler(BaseHTTPRequestHandler):
             if len(parts) == 4 and parts[:2] == ["api", "users"] and parts[3] == "messages":
                 return self._json(service.messages(int(parts[2])))
             return self._static(path)
+        except WeComError as exc:
+            return self._text(str(exc), 403)
         except Exception as exc:
             return self._json({"error": str(exc)}, 500)
 
     def do_POST(self):
-        path = urlparse(self.path).path
+        parsed = urlparse(self.path)
+        path = parsed.path
         try:
+            if path == "/wecom/callback":
+                return self._text(self._wecom_receive(parse_qs(parsed.query)))
             if not self._require_auth():
                 return
             body = self._body()
@@ -189,6 +268,14 @@ class Handler(BaseHTTPRequestHandler):
                         service.push_one(user["id"], force=True)
                         sent += 1
                 return self._json({"sent": sent})
+            if path == "/api/config/wecom/test":
+                test_user = os.getenv("WECOM_TEST_USER_ID", "")
+                if not test_user:
+                    return self._json({"error": "请先填写测试员工 UserID"}, 400)
+                service.channel.client.send_text(
+                    test_user, "企业微信英语助手连接成功 ✅\n回复「开始」即可订阅。"
+                )
+                return self._json({"ok": True})
             if path == "/api/config/wecom":
                 forwarded_proto = self.headers.get("X-Forwarded-Proto", "").lower()
                 trust_proxy = os.getenv("TRUST_PROXY_HEADERS", "").lower() in ("1", "true", "yes")
@@ -211,6 +298,8 @@ class Handler(BaseHTTPRequestHandler):
                     message = service.push_one(user_id, force=True)
                     return self._json({"message": message})
             return self._json({"error": "Not found"}, 404)
+        except WeComError as exc:
+            return self._text(str(exc), 403)
         except ValueError as exc:
             return self._json({"error": str(exc)}, 400)
         except Exception as exc:
