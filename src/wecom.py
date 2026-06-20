@@ -84,8 +84,8 @@ class WeComCrypto:
 class WeComClient:
     API_ROOT = "https://qyapi.weixin.qq.com/cgi-bin"
 
-    def __init__(self, timeout=10):
-        self.timeout = timeout
+    def __init__(self, timeout=None):
+        self.timeout = timeout or int(os.getenv("WECOM_API_TIMEOUT", "10"))
         self._token = None
         self._token_expires_at = 0
         self._lock = threading.Lock()

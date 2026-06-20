@@ -116,11 +116,14 @@ def save_wecom_config(values, allow_sensitive=False):
 
 
 def callback_crypto():
-    return WeComCrypto(
-        os.getenv("WECOM_TOKEN", ""),
-        os.getenv("WECOM_ENCODING_AES_KEY", ""),
-        os.getenv("WECOM_CORP_ID", ""),
-    )
+    try:
+        return WeComCrypto(
+            os.getenv("WECOM_TOKEN", ""),
+            os.getenv("WECOM_ENCODING_AES_KEY", ""),
+            os.getenv("WECOM_CORP_ID", ""),
+        )
+    except ValueError as exc:
+        raise WeComError("企业微信回调配置尚未完成") from exc
 
 
 def process_wecom_message(event_key, message):
@@ -189,6 +192,8 @@ class Handler(BaseHTTPRequestHandler):
 
     def _raw_body(self):
         length = int(self.headers.get("Content-Length", "0"))
+        if length > 1024 * 1024:
+            raise ValueError("请求内容过大")
         return self.rfile.read(length)
 
     def _wecom_verify(self, query):
