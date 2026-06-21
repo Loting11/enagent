@@ -35,6 +35,15 @@ class AgentFlowTest(unittest.TestCase):
         self.service.receive(user["id"], "暂停")
         self.assertIsNone(self.service.push_one(user["id"]))
 
+    def test_auto_subscribe_contact_is_idempotent(self):
+        user, created = self.service.auto_subscribe_contact("小新", "788123")
+        self.assertTrue(created)
+        self.assertEqual(user["subscription_status"], "active")
+        same_user, created_again = self.service.auto_subscribe_contact("小新", "788123")
+        self.assertFalse(created_again)
+        self.assertEqual(same_user["id"], user["id"])
+        self.assertEqual(len(self.service.messages(user["id"])), 1)
+
 
 if __name__ == "__main__":
     unittest.main()

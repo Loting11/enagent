@@ -61,6 +61,12 @@ CREATE TABLE IF NOT EXISTS callback_events (
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     processed_at TEXT
 );
+CREATE TABLE IF NOT EXISTS channel_contacts (
+    channel_user_id TEXT PRIMARY KEY,
+    name TEXT,
+    first_seen_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    last_seen_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
 """
 
 
@@ -119,3 +125,23 @@ class Database:
                WHERE event_key = ?""",
             (status, error, event_key),
         )
+
+    def record_channel_contacts(self, contacts):
+        added = []
+        with self.connect() as conn:
+            for contact in contacts:
+                channel_user_id = str(contact.get("user_id") or "").strip()
+                if not channel_user_id.startswith("788"):
+                    continue
+                name = str(contact.get("name") or "微信用户").strip()
+                cur = conn.execute(
+                    "INSERT OR IGNORE INTO channel_contacts (channel_user_id, name) VALUES (?, ?)",
+                    (channel_user_id, name),
+                )
+                conn.execute(
+                    "UPDATE channel_contacts SET name = ?, last_seen_at = CURRENT_TIMESTAMP WHERE channel_user_id = ?",
+                    (name, channel_user_id),
+                )
+                if cur.rowcount == 1:
+                    added.append({"user_id": channel_user_id, "name": name})
+        return added

@@ -7,6 +7,11 @@ WELCOME = """你好，我是你的 AI 英语知识助手 👋
 每天我会给你发送一个 AI 行业常用英语知识点。
 回复「开始」即可订阅；回复「暂停」可以暂停推送。"""
 
+AUTO_SUBSCRIBE_WELCOME = """你好，我是你的 AI 英语知识助手 👋
+
+你已成功订阅「AI 行业常用英语」，我会每天发送一个知识点和一道小测试。
+回复「来一个」立即体验；回复「暂停」可随时暂停。"""
+
 
 class EnglishAgentService:
     def __init__(self, db, channel, agent):
@@ -30,6 +35,24 @@ class EnglishAgentService:
         return self.db.one(
             "SELECT * FROM users WHERE channel_user_id = ?", (channel_user_id,)
         )
+
+    def auto_subscribe_contact(self, name, channel_user_id):
+        existing = self.get_user_by_channel_id(channel_user_id)
+        if existing:
+            return existing, False
+        try:
+            user_id = self.db.execute(
+                "INSERT INTO users (name, channel_user_id, subscription_status) VALUES (?, ?, 'active')",
+                ((name or "微信用户").strip(), channel_user_id.strip()),
+            )
+        except Exception:
+            existing = self.get_user_by_channel_id(channel_user_id)
+            if existing:
+                return existing, False
+            raise
+        user = self.get_user(user_id)
+        self.channel.send_text(user, AUTO_SUBSCRIBE_WELCOME)
+        return self.get_user(user_id), True
 
     def receive_from_channel(self, channel_user_id, text, name=None):
         user = self.get_user_by_channel_id(channel_user_id)

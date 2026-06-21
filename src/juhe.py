@@ -1,5 +1,6 @@
 import json
 import os
+import hashlib
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
@@ -86,6 +87,14 @@ class JuheClient:
             raise JuheError("回调地址必须使用 HTTPS")
         return self.request("/client/set_notify_url", {"notify_url": str(notify_url)})
 
+    def sync_contacts(self):
+        result = self.request("/contact/sync_contact")
+        data = result.get("data") or {}
+        contacts = data.get("contact_list") or [] if isinstance(data, dict) else []
+        if not isinstance(contacts, list):
+            raise JuheError("聚合聊天联系人数据格式错误")
+        return contacts
+
 
 def parse_juhe_callback(payload):
     if not isinstance(payload, dict):
@@ -102,6 +111,11 @@ def juhe_event_key(guid, data):
     unique = data.get("appinfo") or data.get("msg_id")
     if unique:
         return f"juhe:{guid}:{unique}"
-    return "juhe:{}:{}:{}".format(
-        guid, data.get("id", ""), data.get("seq", data.get("sendtime", ""))
-    )
+    event_id = data.get("id", "")
+    sequence = data.get("seq", data.get("sendtime", ""))
+    if event_id or sequence:
+        return "juhe:{}:{}:{}".format(guid, event_id, sequence)
+    digest = hashlib.sha256(
+        json.dumps(data, ensure_ascii=False, sort_keys=True).encode("utf-8")
+    ).hexdigest()
+    return f"juhe:{guid}:{digest}"

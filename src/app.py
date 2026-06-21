@@ -198,6 +198,18 @@ def process_juhe_message(event_key, sender, text, name=None):
         print(f"Juhe callback processing error: {type(exc).__name__}")
 
 
+def process_juhe_contact_change(event_key):
+    try:
+        contacts = service.channel.juhe_client.sync_contacts()
+        added = db.record_channel_contacts(contacts)
+        for contact in added:
+            service.auto_subscribe_contact(contact["name"], contact["user_id"])
+        db.finish_callback_event(event_key)
+    except Exception as exc:
+        db.finish_callback_event(event_key, str(exc)[:500])
+        print(f"Juhe contact callback processing error: {type(exc).__name__}")
+
+
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, fmt, *args):
         message = fmt % args
@@ -308,6 +320,15 @@ class Handler(BaseHTTPRequestHandler):
         expected_guid = os.getenv("JUHE_GUID", "")
         if not expected_guid or not hmac.compare_digest(guid, expected_guid):
             raise JuheError("聚合聊天实例不匹配")
+        if notify_type == 2131:
+            event_key = f"juhe-contact:{juhe_event_key(guid, data)}"
+            if db.claim_callback_event(event_key):
+                threading.Thread(
+                    target=process_juhe_contact_change,
+                    args=(event_key,),
+                    daemon=True,
+                ).start()
+            return {"code": 0, "message": "ok"}
         if notify_type != 11010:
             return {"code": 0, "message": "ok"}
         if str(data.get("referid", "0")) not in ("", "0"):
@@ -422,6 +443,12 @@ class Handler(BaseHTTPRequestHandler):
                 callback_url = self._public_origin() + juhe_config()["callback_path"]
                 service.channel.juhe_client.set_notify_url(callback_url)
                 return self._json({"ok": True})
+            if path == "/api/config/juhe/contacts/baseline":
+                if not service.channel.juhe_client.configured:
+                    return self._json({"error": "请先完成聚合聊天配置"}, 400)
+                contacts = service.channel.juhe_client.sync_contacts()
+                added = db.record_channel_contacts(contacts)
+                return self._json({"ok": True, "recorded": len(added)})
             if path == "/api/config/juhe":
                 forwarded_proto = self.headers.get("X-Forwarded-Proto", "").lower()
                 trust_proxy = os.getenv("TRUST_PROXY_HEADERS", "").lower() in ("1", "true", "yes")

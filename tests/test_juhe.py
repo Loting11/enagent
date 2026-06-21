@@ -66,6 +66,16 @@ class JuheClientTest(unittest.TestCase):
         with self.assertRaisesRegex(JuheError, "user is offline"):
             self.client.get_profile()
 
+    @patch("src.juhe.urlopen")
+    def test_sync_contacts(self, mock_open):
+        mock_open.return_value = FakeResponse(
+            {"error_code": 0, "data": {"contact_list": [{"user_id": "788123"}]}}
+        )
+        self.assertEqual(self.client.sync_contacts(), [{"user_id": "788123"}])
+        request = mock_open.call_args.args[0]
+        payload = json.loads(request.data.decode("utf-8"))
+        self.assertEqual(payload["path"], "/contact/sync_contact")
+
 
 if __name__ == "__main__":
     unittest.main()
