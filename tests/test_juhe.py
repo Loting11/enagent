@@ -2,7 +2,7 @@ import json
 import unittest
 from unittest.mock import patch
 
-from src.juhe import JuheClient, juhe_event_key, parse_juhe_callback
+from src.juhe import JuheClient, JuheError, juhe_event_key, parse_juhe_callback
 
 
 class FakeResponse:
@@ -57,6 +57,14 @@ class JuheClientTest(unittest.TestCase):
         payload = json.loads(request.data.decode("utf-8"))
         self.assertEqual(payload["path"], "/client/set_notify_url")
         self.assertTrue(payload["data"]["notify_url"].startswith("https://"))
+
+    @patch("src.juhe.urlopen")
+    def test_supplier_err_code_is_rejected(self, mock_open):
+        mock_open.return_value = FakeResponse(
+            {"err_code": 1002, "err_msg": "user is offline"}
+        )
+        with self.assertRaisesRegex(JuheError, "user is offline"):
+            self.client.get_profile()
 
 
 if __name__ == "__main__":

@@ -56,9 +56,16 @@ class JuheClient:
         except (UnicodeDecodeError, json.JSONDecodeError) as exc:
             raise JuheError("聚合聊天接口返回了无效数据") from exc
 
-        code = result.get("code", result.get("error_code", 0))
+        code = result.get(
+            "code", result.get("err_code", result.get("error_code", 0))
+        )
         if code not in (0, "0", None):
-            message = result.get("message") or result.get("error_message") or "未知错误"
+            message = (
+                result.get("message")
+                or result.get("err_msg")
+                or result.get("error_message")
+                or "未知错误"
+            )
             raise JuheError(f"聚合聊天接口错误：{message}")
         return result
 
