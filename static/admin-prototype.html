@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="editorial">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>EnAgent · 运营配置台</title>
+  <!--
+    ASSUMPTIONS
+    1. Desktop-first internal operations console for a small team.
+    2. Every configuration change follows draft -> test -> publish.
+    3. This is a high-fidelity interaction prototype; data is intentionally local.
+    4. No imagery is required: the product is a dense configuration and editorial tool.
+  -->
+  <link rel="stylesheet" href="/admin-prototype.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <a class="brand" href="#overview" aria-label="EnAgent 首页">
+        <span class="brand-mark">En</span>
+        <span><b>EnAgent</b><small>英语订阅助手</small></span>
+      </a>
+
+      <nav aria-label="主要导航">
+        <p class="nav-label">运营</p>
+        <button class="nav-item active" data-page="overview"><span>总览</span><em>4</em></button>
+        <button class="nav-item" data-page="delivery"><span>推送规则</span><i class="status-dot live"></i></button>
+        <button class="nav-item" data-page="audience"><span>用户与分群</span></button>
+        <p class="nav-label">Agent 资产</p>
+        <button class="nav-item" data-page="knowledge"><span>知识库</span><em>12</em></button>
+        <button class="nav-item" data-page="prompt"><span>提示词与模型</span><i class="status-dot"></i></button>
+        <button class="nav-item" data-page="channel"><span>渠道与系统</span></button>
+      </nav>
+
+      <div class="sidebar-foot">
+        <div class="agent-state"><i></i><span><b>数字员工在线</b><small>最后检测：刚刚</small></span></div>
+        <button class="account"><span>周</span><b>管理员</b><small>›</small></button>
+      </div>
+    </aside>
+
+    <main class="main-area">
+      <header class="topbar">
+        <div class="breadcrumb"><span>EnAgent</span><b>/</b><strong id="pageCrumb">总览</strong></div>
+        <div class="top-actions">
+          <label class="theme-picker">界面风格
+            <select id="themeSelect">
+              <option value="editorial">编辑部</option>
+              <option value="studio">深色控制台</option>
+              <option value="quiet">清爽工作台</option>
+            </select>
+          </label>
+          <button class="ghost" id="previewGlobal">预览用户体验</button>
+          <button class="solid" id="publishGlobal">发布全部草稿</button>
+        </div>
+      </header>
+
+      <section class="page active" id="page-overview" data-title="总览">
+        <div class="page-heading">
+          <div><p class="kicker">TODAY · 运营总览</p><h1>早上好，今天的学习正在发生。</h1><p>先处理异常，再决定是否调整今天的内容节奏。</p></div>
+          <button class="text-button" data-go="delivery">查看今日推送计划 →</button>
+        </div>
+
+        <div class="metric-strip">
+          <article><span>订阅用户</span><strong>6</strong><small>新增 2 位</small></article>
+          <article><span>今日触达</span><strong>5 / 6</strong><small>1 位已暂停</small></article>
+          <article><span>互动率</span><strong>67%</strong><small>4 位完成答题</small></article>
+          <article><span>Agent 状态</span><strong class="state-good">在线</strong><small>延迟 1.2 秒</small></article>
+        </div>
+
+        <div class="overview-grid">
+          <article class="surface agenda-card">
+            <div class="section-head"><div><span class="section-index">01</span><h2>今日运行</h2></div><button class="quiet-button">查看日志</button></div>
+            <div class="timeline">
+              <div class="done"><time>09:00</time><i></i><div><b>每日知识点推送</b><p>主题：AI 基础词汇 · 已发送 5 人</p></div><span>完成</span></div>
+              <div class="current"><time>全天</time><i></i><div><b>Agent 自由问答</b><p>DeepSeek Chat · 知识库检索已开启</p></div><span>运行中</span></div>
+              <div><time>21:00</time><i></i><div><b>未学习提醒</b><p>仅提醒今日未互动用户 · 最多一次</p></div><span>待执行</span></div>
+            </div>
+          </article>
+
+          <article class="surface health-card">
+            <div class="section-head"><div><span class="section-index">02</span><h2>需要留意</h2></div></div>
+            <button class="alert-row" data-go="knowledge"><i class="amber"></i><span><b>3 个知识点等待审核</b><small>AI 已生成，尚未进入推送池</small></span><em>›</em></button>
+            <button class="alert-row" data-go="prompt"><i class="blue"></i><span><b>提示词有 1 个草稿版本</b><small>测试通过后可发布</small></span><em>›</em></button>
+            <button class="alert-row"><i class="green"></i><span><b>渠道连接稳定</b><small>过去 24 小时无掉线</small></span><em>›</em></button>
+          </article>
+
+          <article class="surface activity-card">
+            <div class="section-head"><div><span class="section-index">03</span><h2>最近互动</h2></div><button class="quiet-button">全部用户</button></div>
+            <div class="activity-list">
+              <div><span class="avatar">陈</span><p><b>陈同学</b>回答了「inference」测试</p><strong class="correct">正确</strong><time>2 分钟前</time></div>
+              <div><span class="avatar">林</span><p><b>林同学</b>询问了 prompt 与 token 的区别</p><strong>已回复</strong><time>18 分钟前</time></div>
+              <div><span class="avatar">吴</span><p><b>吴同学</b>将难度调整为 2 级</p><strong>已更新</strong><time>1 小时前</time></div>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section class="page" id="page-delivery" data-title="推送规则">
+        <div class="page-heading compact">
+          <div><p class="kicker">DELIVERY POLICY</p><h1>推送规则</h1><p>决定什么时间、给谁、用什么内容触达。规则发布前可先发给测试账号。</p></div>
+          <div class="heading-actions"><span class="draft-status">草稿已自动保存</span><button class="ghost" id="sendTest">发送测试</button><button class="solid" id="publishRule">发布规则</button></div>
+        </div>
+
+        <div class="config-layout">
+          <div class="config-column">
+            <article class="surface form-section">
+              <div class="section-head"><div><span class="section-index">01</span><h2>发送时间</h2></div><label class="switch"><input type="checkbox" checked><span></span>规则启用</label></div>
+              <div class="field-grid three">
+                <label><span>频率</span><select><option>每天</option><option>工作日</option><option>自定义星期</option></select></label>
+                <label><span>发送时间</span><input type="time" value="09:00"></label>
+                <label><span>时区</span><select><option>北京时间 GMT+8</option></select></label>
+              </div>
+              <div class="inline-policy"><label class="check"><input type="checkbox" checked><span></span>随机延迟</label><p>在设定时间后 <input class="mini-input" type="number" value="8"> 分钟内分散发送，降低账号风险。</p></div>
+            </article>
+
+            <article class="surface form-section">
+              <div class="section-head"><div><span class="section-index">02</span><h2>目标用户</h2></div><button class="quiet-button" data-go="audience">管理分群</button></div>
+              <div class="segment-choice">
+                <label class="choice active"><input type="radio" name="audience" checked><span><b>全部订阅用户</b><small>当前预计 5 人</small></span></label>
+                <label class="choice"><input type="radio" name="audience"><span><b>指定用户分群</b><small>按难度、兴趣、活跃度筛选</small></span></label>
+              </div>
+              <div class="guardrail"><b>自动排除</b><span>已暂停</span><span>已退订</span><span>24 小时内发送失败</span></div>
+            </article>
+
+            <article class="surface form-section">
+              <div class="section-head"><div><span class="section-index">03</span><h2>内容策略</h2></div><button class="quiet-button" data-go="knowledge">查看内容池</button></div>
+              <div class="field-grid two">
+                <label><span>知识库</span><select><option>AI 行业常用英语 · 12 条</option></select></label>
+                <label><span>难度分配</span><select><option>跟随用户当前等级</option><option>统一难度</option></select></label>
+              </div>
+              <div class="rule-list">
+                <label class="check"><input type="checkbox" checked><span></span><b>不重复推送已学内容</b><small>内容耗尽后再从低掌握度内容中复习</small></label>
+                <label class="check"><input type="checkbox" checked><span></span><b>每条附带一道选择题</b><small>用户可回复 A / B / C 完成测试</small></label>
+                <label class="check"><input type="checkbox" checked><span></span><b>根据互动动态调节难度</b><small>连续答对 3 次后升级，连续答错 2 次后降级</small></label>
+              </div>
+            </article>
+
+            <article class="surface form-section">
+              <div class="section-head"><div><span class="section-index">04</span><h2>触达边界</h2></div></div>
+              <div class="field-grid three">
+                <label><span>单用户每日上限</span><div class="unit-input"><input type="number" value="2"><i>条</i></div></label>
+                <label><span>失败重试</span><select><option>间隔 15 分钟，最多 2 次</option></select></label>
+                <label><span>安静时段</span><div class="time-range"><input type="time" value="22:00"><b>—</b><input type="time" value="08:00"></div></label>
+              </div>
+            </article>
+          </div>
+
+          <aside class="preview-column">
+            <div class="preview-sticky">
+              <div class="preview-title"><div><span>用户视角</span><b>今日知识点预览</b></div><select><option>难度 1 · 新用户</option><option>难度 2 · 活跃用户</option></select></div>
+              <div class="phone-chat">
+                <div class="chat-date">上午 09:03</div>
+                <div class="bubble">今日 AI 英语：<b>inference</b><br><br>含义：推理；推断<br>模型根据已有信息得出结论的过程。<br><br>例句：The model performs inference in real time.<br>该模型会实时执行推理。<br><br>小测试：Which sentence uses “inference” correctly?<br>A. The inference is blue.<br>B. The model makes an inference.<br>C. I inference every day.<br><br>直接回复 A、B 或 C。</div>
+                <div class="reply">B</div>
+                <div class="bubble short">回答正确 ✓<br><br>“make an inference” 表示「作出推断」。你已经连续答对 2 题。</div>
+              </div>
+              <button class="preview-refresh" id="refreshPreview">换一个知识点预览</button>
+              <p class="preview-note">预览使用当前草稿配置，不会向真实用户发送。</p>
+            </div>
+          </aside>
+        </div>
+      </section>
+
+      <section class="page" id="page-knowledge" data-title="知识库">
+        <div class="page-heading compact">
+          <div><p class="kicker">KNOWLEDGE BASE</p><h1>知识库</h1><p>将教研框架、知识点和素材组织成可控的内容池。</p></div>
+          <div class="heading-actions"><button class="ghost" id="importKnowledge">导入内容</button><button class="solid" id="newKnowledge">新建知识点</button></div>
+        </div>
+        <div class="library-bar surface">
+          <div><span class="library-monogram">AI</span><p><b>AI 行业常用英语</b><small>12 个知识点 · 9 个已发布 · 3 个待审核</small></p></div>
+          <div class="library-actions"><button>教研框架</button><button>来源设置</button><button>•••</button></div>
+        </div>
+        <div class="knowledge-layout">
+          <aside class="surface filters">
+            <h3>内容视图</h3>
+            <button class="active">全部内容 <b>12</b></button><button>已发布 <b>9</b></button><button>待审核 <b>3</b></button><button>草稿 <b>0</b></button>
+            <hr><h3>主题</h3>
+            <button>基础概念 <b>5</b></button><button>模型训练 <b>4</b></button><button>产品应用 <b>3</b></button>
+            <hr><h3>难度</h3>
+            <label class="check"><input type="checkbox" checked><span></span>Level 1</label><label class="check"><input type="checkbox" checked><span></span>Level 2</label><label class="check"><input type="checkbox"><span></span>Level 3</label>
+          </aside>
+          <section class="surface content-table-wrap">
+            <div class="table-tools"><label class="search"><span>⌕</span><input placeholder="搜索单词、含义或主题"></label><div><button>批量操作</button><select><option>最近更新</option><option>难度</option></select></div></div>
+            <table class="content-table">
+              <thead><tr><th><input type="checkbox"></th><th>知识点</th><th>主题</th><th>难度</th><th>学习数据</th><th>状态</th><th></th></tr></thead>
+              <tbody>
+                <tr><td><input type="checkbox"></td><td><b>inference</b><small>推理；推断</small></td><td>基础概念</td><td><span class="level">L1</span></td><td><b>75%</b><small>正确率 · 4 次</small></td><td><span class="pill live-pill">已发布</span></td><td><button class="row-menu">•••</button></td></tr>
+                <tr><td><input type="checkbox"></td><td><b>fine-tuning</b><small>微调</small></td><td>模型训练</td><td><span class="level">L2</span></td><td><b>50%</b><small>正确率 · 2 次</small></td><td><span class="pill live-pill">已发布</span></td><td><button class="row-menu">•••</button></td></tr>
+                <tr><td><input type="checkbox"></td><td><b>hallucination</b><small>模型幻觉</small></td><td>基础概念</td><td><span class="level">L2</span></td><td><b>—</b><small>尚未推送</small></td><td><span class="pill review-pill">待审核</span></td><td><button class="row-menu">•••</button></td></tr>
+                <tr><td><input type="checkbox"></td><td><b>embedding</b><small>嵌入；向量表示</small></td><td>模型训练</td><td><span class="level">L2</span></td><td><b>67%</b><small>正确率 · 3 次</small></td><td><span class="pill live-pill">已发布</span></td><td><button class="row-menu">•••</button></td></tr>
+                <tr><td><input type="checkbox"></td><td><b>latency</b><small>延迟</small></td><td>产品应用</td><td><span class="level">L1</span></td><td><b>—</b><small>尚未推送</small></td><td><span class="pill review-pill">待审核</span></td><td><button class="row-menu">•••</button></td></tr>
+              </tbody>
+            </table>
+          </section>
+        </div>
+      </section>
+
+      <section class="page" id="page-prompt" data-title="提示词与模型">
+        <div class="page-heading compact">
+          <div><p class="kicker">AGENT BEHAVIOR</p><h1>提示词与模型</h1><p>定义 Agent 的角色、边界和回答方法，并在发布前完成对话测试。</p></div>
+          <div class="heading-actions"><span class="version-tag">草稿 v3</span><button class="ghost" id="savePrompt">保存版本</button><button class="solid" id="publishPrompt">发布到 Agent</button></div>
+        </div>
+        <div class="prompt-layout">
+          <section class="prompt-workbench">
+            <div class="surface model-card">
+              <div class="section-head"><div><span class="section-index">01</span><h2>模型配置</h2></div><span class="connection"><i></i>连接正常</span></div>
+              <div class="field-grid three">
+                <label><span>模型服务</span><select><option>DeepSeek</option></select></label>
+                <label><span>模型</span><select><option>deepseek-chat</option></select></label>
+                <label><span>回答创造性 <b id="tempValue">0.4</b></span><input id="temperature" type="range" min="0" max="1" step="0.1" value="0.4"></label>
+              </div>
+            </div>
+            <div class="surface editor-card">
+              <div class="editor-tabs"><button class="active">系统提示词</button><button>教学方法</button><button>安全边界</button><button>版本记录</button></div>
+              <div class="editor-meta"><span>System prompt</span><div><button class="variable-button">＋ 插入变量</button><button>格式化</button></div></div>
+              <textarea id="promptEditor" spellcheck="false">你是一个通过企业微信陪伴用户学习英语的助理。
+
+你的核心任务：
+1. 围绕 {{knowledge_topic}} 提供准确、简洁、可理解的英语知识。
+2. 根据用户当前水平 {{user_level}} 控制词汇和解释难度。
+3. 优先引用知识库内容；知识库没有答案时，应明确说明不确定性。
+4. 每次回复只推进一个学习目标，不连续抛出多个问题。
+
+回答风格：
+- 中文解释为主，保留必要的英文表达。
+- 像耐心的教练，不使用夸张鼓励。
+- 默认控制在 180 字以内，除非用户要求展开。
+
+互动规则：
+- 用户答题后，先判断正误，再解释原因。
+- 用户表达困惑时，换一个例子，不重复原解释。
+- 不讨论与英语学习明显无关的敏感或高风险话题。</textarea>
+              <div class="editor-foot"><span><b id="charCount">0</b> 字符</span><span>变量：<code>{{knowledge_topic}}</code> <code>{{user_level}}</code></span></div>
+            </div>
+            <div class="surface boundary-card">
+              <div class="section-head"><div><span class="section-index">02</span><h2>回答边界</h2></div></div>
+              <div class="rule-list two-col">
+                <label class="check"><input type="checkbox" checked><span></span><b>知识库优先</b><small>答案冲突时以审核内容为准</small></label>
+                <label class="check"><input type="checkbox" checked><span></span><b>限制回答长度</b><small>默认最多 180 个汉字</small></label>
+                <label class="check"><input type="checkbox" checked><span></span><b>拒绝编造</b><small>无法确认时明确说明</small></label>
+                <label class="check"><input type="checkbox" checked><span></span><b>保持学习主题</b><small>逐步引导回英语学习</small></label>
+              </div>
+            </div>
+          </section>
+          <aside class="test-console surface">
+            <div class="test-head"><div><span>测试对话</span><b>预览草稿行为</b></div><button id="clearTest">清空</button></div>
+            <div class="test-context"><span>模拟用户</span><select><option>初级 · AI 从业者</option><option>中级 · 产品经理</option></select></div>
+            <div class="test-messages" id="testMessages">
+              <div class="test-user">prompt 和 instruction 有什么区别？</div>
+              <div class="test-agent">简单说，<b>prompt</b> 是你给模型的完整输入，而 <b>instruction</b> 是其中用来告诉模型“要做什么”的指令。<br><br>例如：<br>“请用一句话解释 token” 是 instruction；连同背景、示例一起提交给模型的整段内容，才是 prompt。</div>
+            </div>
+            <form class="test-composer" id="testForm"><textarea id="testInput" placeholder="输入一条测试消息…"></textarea><div><span>不会发送给真实用户</span><button class="solid">运行测试 ↗</button></div></form>
+          </aside>
+        </div>
+      </section>
+
+      <section class="page placeholder-page" id="page-audience" data-title="用户与分群">
+        <div><p class="kicker">AUDIENCE</p><h1>用户与分群</h1><p>按订阅状态、英语水平、兴趣主题和最近活跃度建立动态人群。</p><button class="solid">创建第一个动态分群</button></div>
+      </section>
+      <section class="page placeholder-page" id="page-channel" data-title="渠道与系统">
+        <div><p class="kicker">CHANNEL & SYSTEM</p><h1>渠道与系统</h1><p>管理企微协议实例、模型密钥、回调状态和异常告警。</p><a class="solid link-button" href="/">打开当前渠道配置</a></div>
+      </section>
+    </main>
+  </div>
+
+  <div class="toast" id="prototypeToast"></div>
+  <dialog id="prototypeDialog">
+    <div class="dialog-content"><span class="dialog-kicker">PREVIEW MODE</span><h2 id="dialogTitle">操作已完成</h2><p id="dialogText">这是原型中的反馈示例。</p><button class="solid" id="closeDialog">知道了</button></div>
+  </dialog>
+  <script src="/admin-prototype.js"></script>
+</body>
+</html>
