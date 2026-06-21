@@ -118,6 +118,9 @@ async function openJuheConfig(){
   const test=document.querySelector('#testJuhe');
   test.disabled=!secure||!config.send_ready;
   test.title=!secure?'请先启用 HTTPS':(!config.send_ready?'请先保存全部配置':'');
+  const register=document.querySelector('#registerJuheCallback');
+  register.disabled=!secure||!config.send_ready||!config.callback_ready;
+  register.title=!config.callback_ready?'请先保存配置以生成安全回调地址':'';
   juheDialog.showModal();
 }
 
@@ -127,6 +130,10 @@ document.querySelector('#cancelJuhe').onclick=()=>juheDialog.close();
 document.querySelector('#testJuhe').onclick=async()=>{
   await api('/api/config/juhe/test',{method:'POST',body:'{}'});
   toast('开放平台凭证和设备实例有效');
+};
+document.querySelector('#registerJuheCallback').onclick=async()=>{
+  await api('/api/config/juhe/callback/register',{method:'POST',body:'{}'});
+  toast('供应商实例通知地址已配置');
 };
 juheForm.onsubmit=async e=>{
   e.preventDefault(); const body={};

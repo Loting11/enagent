@@ -258,6 +258,16 @@ class Handler(BaseHTTPRequestHandler):
             raise ValueError("请求内容过大")
         return self.rfile.read(length)
 
+    def _public_origin(self):
+        configured = os.getenv("PUBLIC_BASE_URL", "").rstrip("/")
+        if configured:
+            return configured
+        trust_proxy = os.getenv("TRUST_PROXY_HEADERS", "").lower() in ("1", "true", "yes")
+        proto = self.headers.get("X-Forwarded-Proto", "") if trust_proxy else ""
+        proto = proto or ("https" if isinstance(self.connection, ssl.SSLSocket) else "http")
+        host = self.headers.get("Host", "")
+        return f"{proto}://{host}".rstrip("/")
+
     def _wecom_verify(self, query):
         encrypted = query.get("echostr", [""])[0]
         signature = query.get("msg_signature", [""])[0]
@@ -405,6 +415,12 @@ class Handler(BaseHTTPRequestHandler):
                 if not service.channel.juhe_client.configured:
                     return self._json({"error": "请先完成聚合聊天配置"}, 400)
                 service.channel.juhe_client.get_profile()
+                return self._json({"ok": True})
+            if path == "/api/config/juhe/callback/register":
+                if not service.channel.juhe_client.configured:
+                    return self._json({"error": "请先完成聚合聊天配置"}, 400)
+                callback_url = self._public_origin() + juhe_config()["callback_path"]
+                service.channel.juhe_client.set_notify_url(callback_url)
                 return self._json({"ok": True})
             if path == "/api/config/juhe":
                 forwarded_proto = self.headers.get("X-Forwarded-Proto", "").lower()

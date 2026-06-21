@@ -49,6 +49,15 @@ class JuheClientTest(unittest.TestCase):
         self.assertEqual((guid, notify_type), ("device-guid", 11010))
         self.assertEqual(juhe_event_key(guid, data), "juhe:device-guid:unique-message")
 
+    @patch("src.juhe.urlopen")
+    def test_registers_https_callback(self, mock_open):
+        mock_open.return_value = FakeResponse({"code": 0, "data": {}})
+        self.client.set_notify_url("https://agent.example/juhe/callback?token=safe")
+        request = mock_open.call_args.args[0]
+        payload = json.loads(request.data.decode("utf-8"))
+        self.assertEqual(payload["path"], "/client/set_notify_url")
+        self.assertTrue(payload["data"]["notify_url"].startswith("https://"))
+
 
 if __name__ == "__main__":
     unittest.main()

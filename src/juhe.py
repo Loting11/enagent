@@ -74,6 +74,11 @@ class JuheClient:
     def get_profile(self):
         return self.request("/user/get_profile")
 
+    def set_notify_url(self, notify_url):
+        if not str(notify_url).startswith("https://"):
+            raise JuheError("回调地址必须使用 HTTPS")
+        return self.request("/client/set_notify_url", {"notify_url": str(notify_url)})
+
 
 def parse_juhe_callback(payload):
     if not isinstance(payload, dict):
@@ -93,4 +98,3 @@ def juhe_event_key(guid, data):
     return "juhe:{}:{}:{}".format(
         guid, data.get("id", ""), data.get("seq", data.get("sendtime", ""))
     )
-
