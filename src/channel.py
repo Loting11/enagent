@@ -1,7 +1,9 @@
 try:
     from .wecom import WeComClient
+    from .juhe import JuheClient
 except ImportError:  # Running as `python3 src/app.py`.
     from wecom import WeComClient
+    from juhe import JuheClient
 
 
 class ChannelAdapter:
@@ -42,17 +44,21 @@ class MockWeComChannel(ChannelAdapter):
 
 
 class WeComChannel(MockWeComChannel):
-    """Send real application messages for WeCom users, while retaining Demo users."""
+    """Send through the protocol provider, then official app API, with a demo fallback."""
 
-    def __init__(self, db, client=None):
+    def __init__(self, db, client=None, juhe_client=None):
         super().__init__(db)
         self.client = client or WeComClient()
+        self.juhe_client = juhe_client or JuheClient()
 
     def send_text(self, user, text):
         channel_user_id = user["channel_user_id"]
         is_demo = channel_user_id.startswith("wx_demo_") or channel_user_id.startswith("mock:")
         result = {"ok": True, "channel": "mock"}
-        if self.client.configured and not is_demo:
+        if self.juhe_client.configured and not is_demo:
+            result = self.juhe_client.send_text(channel_user_id, text)
+            result["channel"] = "juhe"
+        elif self.client.configured and not is_demo:
             result = self.client.send_text(channel_user_id, text)
             result["channel"] = "wecom"
         self.db.execute(

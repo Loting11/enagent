@@ -11,7 +11,7 @@
   <main>
     <header>
       <div><span class="eyebrow">WECOM LEARNING AGENT</span><h1>AI 英语订阅助手</h1></div>
-      <div class="header-actions"><button id="openWecom">企微配置</button><button id="runPush" class="primary">向订阅用户推送今日知识</button></div>
+      <div class="header-actions"><button id="openJuhe">协议通道</button><button id="openWecom">官方应用</button><button id="runPush" class="primary">向订阅用户推送今日知识</button></div>
     </header>
 
     <section id="stats" class="stats"></section>
@@ -51,6 +51,21 @@
       <div id="wecomStatus" class="integration-status"></div>
       <div class="callback"><span>后续回调路径</span><code id="callbackUrl"></code></div>
       <div class="dialog-actions"><button type="button" id="testWecom">测试连接</button><button type="button" id="cancelWecom">取消</button><button class="primary" type="submit">保存配置</button></div>
+    </form>
+  </dialog>
+  <dialog id="juheDialog">
+    <form id="juheForm">
+      <div class="dialog-head"><div><span class="eyebrow">PROTOCOL CHANNEL</span><h2>聚合聊天配置</h2></div><button type="button" id="closeJuhe" aria-label="关闭">×</button></div>
+      <div id="juheSecurityNotice" class="notice"></div>
+      <div class="form-grid">
+        <label>开放平台地址<input name="api_url" autocomplete="off" placeholder="https://chat-api.juhebot.com/open/GuidRequest"></label>
+        <label>App Key<input name="app_key" autocomplete="off"></label>
+        <label>设备 GUID<input name="guid" autocomplete="off" placeholder="设备列表中的设备ID"></label>
+        <label>App Secret<input name="app_secret" type="password" autocomplete="new-password"><small data-juhe-status="app_secret"></small></label>
+      </div>
+      <div id="juheStatus" class="integration-status"></div>
+      <div class="callback"><span>将此地址填写到供应商的“实例通知地址”</span><code id="juheCallbackUrl"></code></div>
+      <div class="dialog-actions"><button type="button" id="testJuhe">验证凭证</button><button type="button" id="cancelJuhe">取消</button><button class="primary" type="submit">保存配置</button></div>
     </form>
   </dialog>
   <div id="toast"></div>

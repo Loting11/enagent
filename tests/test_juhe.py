@@ -1,0 +1,54 @@
+import json
+import unittest
+from unittest.mock import patch
+
+from src.juhe import JuheClient, juhe_event_key, parse_juhe_callback
+
+
+class FakeResponse:
+    def __init__(self, data):
+        self.data = json.dumps(data).encode("utf-8")
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        return False
+
+    def read(self):
+        return self.data
+
+
+class JuheClientTest(unittest.TestCase):
+    def setUp(self):
+        self.client = JuheClient(
+            api_url="https://supplier.test/open/GuidRequest",
+            app_key="key",
+            app_secret="secret",
+            guid="device-guid",
+        )
+
+    @patch("src.juhe.urlopen")
+    def test_send_text_normalizes_direct_conversation(self, mock_open):
+        mock_open.return_value = FakeResponse({"code": 0, "data": {}})
+        self.client.send_text("788123", "hello")
+        request = mock_open.call_args.args[0]
+        payload = json.loads(request.data.decode("utf-8"))
+        self.assertEqual(payload["path"], "/msg/send_text")
+        self.assertEqual(payload["data"]["guid"], "device-guid")
+        self.assertEqual(payload["data"]["conversation_id"], "S:788123")
+        self.assertEqual(payload["data"]["content"], "hello")
+
+    def test_parses_and_deduplicates_callback(self):
+        payload = {
+            "guid": "device-guid",
+            "notify_type": 11010,
+            "data": {"appinfo": "unique-message", "sender": "788123"},
+        }
+        guid, notify_type, data = parse_juhe_callback(payload)
+        self.assertEqual((guid, notify_type), ("device-guid", 11010))
+        self.assertEqual(juhe_event_key(guid, data), "juhe:device-guid:unique-message")
+
+
+if __name__ == "__main__":
+    unittest.main()

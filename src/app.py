@@ -4,7 +4,9 @@ import hmac
 import json
 import mimetypes
 import os
+import re
 import ssl
+import secrets
 import threading
 import time
 import tempfile
@@ -19,6 +21,7 @@ from content import DEMO_CONTENT
 from db import Database
 from service import EnglishAgentService
 from wecom import WeComCrypto, WeComError, parse_encrypted_xml, parse_message_xml
+from juhe import DEFAULT_API_URL, JuheClient, JuheError, juhe_event_key, parse_juhe_callback
 
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -50,6 +53,44 @@ WECOM_FIELDS = {
     "token": ("WECOM_TOKEN", True),
     "encoding_aes_key": ("WECOM_ENCODING_AES_KEY", True),
 }
+
+JUHE_FIELDS = {
+    "api_url": ("JUHE_API_URL", False),
+    "app_key": ("JUHE_APP_KEY", False),
+    "guid": ("JUHE_GUID", False),
+    "app_secret": ("JUHE_APP_SECRET", True),
+}
+
+
+def save_env_updates(updates):
+    env_path = ROOT / ".env"
+    lines = env_path.read_text(encoding="utf-8").splitlines() if env_path.exists() else []
+    output, handled = [], set()
+    for line in lines:
+        if "=" not in line or line.lstrip().startswith("#"):
+            output.append(line)
+            continue
+        key = line.split("=", 1)[0].strip()
+        if key in updates:
+            output.append(f"{key}={updates[key]}")
+            handled.add(key)
+        else:
+            output.append(line)
+    for key, value in updates.items():
+        if key not in handled:
+            output.append(f"{key}={value}")
+
+    fd, temp_name = tempfile.mkstemp(prefix=".env.", dir=ROOT)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as stream:
+            stream.write("\n".join(output) + "\n")
+        os.chmod(temp_name, 0o600)
+        os.replace(temp_name, env_path)
+    finally:
+        if os.path.exists(temp_name):
+            os.unlink(temp_name)
+    for key, value in updates.items():
+        os.environ[key] = value
 
 
 def wecom_config():
@@ -84,35 +125,45 @@ def save_wecom_config(values, allow_sensitive=False):
             raise ValueError("EncodingAESKey 应为 43 个字符")
         updates[env_key] = value
 
-    env_path = ROOT / ".env"
-    lines = env_path.read_text(encoding="utf-8").splitlines() if env_path.exists() else []
-    output, handled = [], set()
-    for line in lines:
-        if "=" not in line or line.lstrip().startswith("#"):
-            output.append(line)
-            continue
-        key = line.split("=", 1)[0].strip()
-        if key in updates:
-            output.append(f"{key}={updates[key]}")
-            handled.add(key)
-        else:
-            output.append(line)
-    for key, value in updates.items():
-        if key not in handled:
-            output.append(f"{key}={value}")
-
-    fd, temp_name = tempfile.mkstemp(prefix=".env.", dir=ROOT)
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as stream:
-            stream.write("\n".join(output) + "\n")
-        os.chmod(temp_name, 0o600)
-        os.replace(temp_name, env_path)
-    finally:
-        if os.path.exists(temp_name):
-            os.unlink(temp_name)
-    for key, value in updates.items():
-        os.environ[key] = value
+    save_env_updates(updates)
     return wecom_config()
+
+
+def juhe_config():
+    result = {}
+    for field, (env_key, sensitive) in JUHE_FIELDS.items():
+        value = os.getenv(env_key, "")
+        if field == "api_url" and not value:
+            value = DEFAULT_API_URL
+        result[field] = "" if sensitive else value
+        result[f"{field}_configured"] = bool(value)
+    token = os.getenv("JUHE_CALLBACK_TOKEN", "")
+    result["callback_path"] = f"/juhe/callback?token={token}" if token else "/juhe/callback"
+    result["callback_ready"] = bool(token and os.getenv("JUHE_GUID", ""))
+    result["send_ready"] = all(
+        os.getenv(key, "") for key in ("JUHE_APP_KEY", "JUHE_APP_SECRET", "JUHE_GUID")
+    )
+    return result
+
+
+def save_juhe_config(values, allow_sensitive=False):
+    updates = {}
+    for field, (env_key, sensitive) in JUHE_FIELDS.items():
+        if field not in values:
+            continue
+        if sensitive and not allow_sensitive:
+            raise ValueError("敏感配置只能通过 HTTPS 提交")
+        value = str(values[field]).strip()
+        if "\n" in value or "\r" in value:
+            raise ValueError(f"{field} 不能包含换行")
+        if field == "api_url" and value and not value.startswith("https://"):
+            raise ValueError("API 地址必须使用 HTTPS")
+        updates[env_key] = value
+    if not os.getenv("JUHE_CALLBACK_TOKEN", ""):
+        updates["JUHE_CALLBACK_TOKEN"] = secrets.token_urlsafe(32)
+    save_env_updates(updates)
+    service.channel.juhe_client = JuheClient()
+    return juhe_config()
 
 
 def callback_crypto():
@@ -138,9 +189,20 @@ def process_wecom_message(event_key, message):
         print(f"WeCom callback processing error: {exc}")
 
 
+def process_juhe_message(event_key, sender, text, name=None):
+    try:
+        service.receive_from_channel(sender, text, name=name)
+        db.finish_callback_event(event_key)
+    except Exception as exc:
+        db.finish_callback_event(event_key, str(exc)[:500])
+        print(f"Juhe callback processing error: {type(exc).__name__}")
+
+
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, fmt, *args):
-        print(f"[{self.log_date_time_string()}] {fmt % args}")
+        message = fmt % args
+        message = re.sub(r"([?&]token=)[^& ]+", r"\1[redacted]", message)
+        print(f"[{self.log_date_time_string()}] {message}")
 
     def _json(self, data, status=200):
         body = json.dumps(data, ensure_ascii=False).encode("utf-8")
@@ -226,6 +288,46 @@ class Handler(BaseHTTPRequestHandler):
             ).start()
         return "success"
 
+    def _juhe_receive(self, query):
+        expected_token = os.getenv("JUHE_CALLBACK_TOKEN", "")
+        supplied_token = query.get("token", [""])[0]
+        if not expected_token or not hmac.compare_digest(supplied_token, expected_token):
+            raise JuheError("聚合聊天回调认证失败")
+        payload = self._body()
+        guid, notify_type, data = parse_juhe_callback(payload)
+        expected_guid = os.getenv("JUHE_GUID", "")
+        if not expected_guid or not hmac.compare_digest(guid, expected_guid):
+            raise JuheError("聚合聊天实例不匹配")
+        if notify_type != 11010:
+            return {"code": 0, "message": "ok"}
+        if str(data.get("referid", "0")) not in ("", "0"):
+            return {"code": 0, "message": "ok"}
+
+        sender = str(data.get("sender") or data.get("from_id") or "").strip()
+        room_id = str(data.get("roomid") or data.get("room_id") or "0").strip()
+        text = str(data.get("content") or "").strip()
+        content_type = data.get("content_type")
+        msg_type = data.get("msg_type")
+        is_text = (
+            content_type in (2, "2")
+            if content_type is not None
+            else msg_type in (1, "1")
+        )
+        # Phase one is limited to personal-WeChat customers in direct chats. This
+        # also prevents the employee's own outbound messages from looping back.
+        is_external_customer = sender.startswith("788")
+        if not (sender and text and is_text and is_external_customer and room_id in ("", "0")):
+            return {"code": 0, "message": "ok"}
+
+        event_key = juhe_event_key(guid, data)
+        if db.claim_callback_event(event_key):
+            threading.Thread(
+                target=process_juhe_message,
+                args=(event_key, sender, text, data.get("sender_name")),
+                daemon=True,
+            ).start()
+        return {"code": 0, "message": "ok"}
+
     def do_GET(self):
         parsed = urlparse(self.path)
         path = parsed.path
@@ -244,12 +346,16 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(db.all("SELECT * FROM content_items ORDER BY difficulty, id"))
             if path == "/api/config/wecom":
                 return self._json(wecom_config())
+            if path == "/api/config/juhe":
+                return self._json(juhe_config())
             parts = path.strip("/").split("/")
             if len(parts) == 4 and parts[:2] == ["api", "users"] and parts[3] == "messages":
                 return self._json(service.messages(int(parts[2])))
             return self._static(path)
         except WeComError as exc:
             return self._text(str(exc), 403)
+        except JuheError as exc:
+            return self._json({"error": str(exc)}, 403)
         except Exception as exc:
             return self._json({"error": str(exc)}, 500)
 
@@ -259,6 +365,8 @@ class Handler(BaseHTTPRequestHandler):
         try:
             if path == "/wecom/callback":
                 return self._text(self._wecom_receive(parse_qs(parsed.query)))
+            if path == "/juhe/callback":
+                return self._json(self._juhe_receive(parse_qs(parsed.query)))
             if not self._require_auth():
                 return
             body = self._body()
@@ -293,6 +401,23 @@ class Handler(BaseHTTPRequestHandler):
                 if sensitive_present and not secure:
                     return self._json({"error": "当前连接不是 HTTPS，已拒绝保存敏感配置"}, 403)
                 return self._json(save_wecom_config(body, allow_sensitive=secure))
+            if path == "/api/config/juhe/test":
+                if not service.channel.juhe_client.configured:
+                    return self._json({"error": "请先完成聚合聊天配置"}, 400)
+                service.channel.juhe_client.get_profile()
+                return self._json({"ok": True})
+            if path == "/api/config/juhe":
+                forwarded_proto = self.headers.get("X-Forwarded-Proto", "").lower()
+                trust_proxy = os.getenv("TRUST_PROXY_HEADERS", "").lower() in ("1", "true", "yes")
+                secure = isinstance(self.connection, ssl.SSLSocket) or (
+                    trust_proxy and forwarded_proto == "https"
+                )
+                sensitive_present = any(
+                    field in body for field, (_, sensitive) in JUHE_FIELDS.items() if sensitive
+                )
+                if sensitive_present and not secure:
+                    return self._json({"error": "当前连接不是 HTTPS，已拒绝保存敏感配置"}, 403)
+                return self._json(save_juhe_config(body, allow_sensitive=secure))
             parts = path.strip("/").split("/")
             if len(parts) == 4 and parts[:2] == ["api", "users"]:
                 user_id = int(parts[2])
@@ -305,6 +430,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"error": "Not found"}, 404)
         except WeComError as exc:
             return self._text(str(exc), 403)
+        except JuheError as exc:
+            return self._json({"error": str(exc)}, 403)
         except ValueError as exc:
             return self._json({"error": str(exc)}, 400)
         except Exception as exc:

@@ -57,6 +57,13 @@ ADMIN_PASSWORD=使用随机生成的强密码
 企微后台的回调 URL 应设置为 `https://你的域名/wecom/callback`。Token 和
 EncodingAESKey 必须与后台配置一致。
 
+## 聚合聊天协议通道
+
+管理后台的“协议通道”支持供应商开放平台。配置 App Key、App Secret 和设备
+GUID 后，系统会生成带随机认证令牌的回调地址。将完整地址填写到供应商的
+“实例通知地址”，外部微信客户的文本消息即可进入现有 Agent；主动推送通过
+`/msg/send_text` 发送。供应商密钥只保存在服务器 `.env`，不会提交到仓库。
+
 ## 测试
 
 ```bash
