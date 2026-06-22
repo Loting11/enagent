@@ -76,6 +76,44 @@ class JuheClientTest(unittest.TestCase):
         payload = json.loads(request.data.decode("utf-8"))
         self.assertEqual(payload["path"], "/contact/sync_contact")
 
+    @patch("src.juhe.urlopen")
+    def test_uploads_and_sends_voice(self, mock_open):
+        mock_open.side_effect = [
+            FakeResponse(
+                {
+                    "error_code": 0,
+                    "data": {
+                        "cdn_dns": "cdn.example",
+                        "client_version": "5.0.0",
+                        "corp_id": "corp",
+                        "vid": "vid",
+                    },
+                }
+            ),
+            FakeResponse(
+                {
+                    "error_code": 0,
+                    "data": {
+                        "file_id": "file-id",
+                        "file_size": 1024,
+                        "file_md5": "md5",
+                        "aes_key": "aes",
+                    },
+                }
+            ),
+            FakeResponse({"error_code": 0, "data": {}}),
+        ]
+
+        self.client.send_voice_url("788123", "https://agent.example/voice.m4a", 2500)
+
+        requests = [json.loads(call.args[0].data.decode("utf-8")) for call in mock_open.call_args_list]
+        self.assertEqual([item["path"] for item in requests], [
+            "/cdn/get_cdn_info", "/cloud/c2c_upload", "/msg/send_voice"
+        ])
+        self.assertEqual(requests[1]["data"]["file_type"], 5)
+        self.assertEqual(requests[2]["data"]["conversation_id"], "S:788123")
+        self.assertEqual(requests[2]["data"]["voice_time"], 2500)
+
 
 if __name__ == "__main__":
     unittest.main()

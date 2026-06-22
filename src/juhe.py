@@ -71,13 +71,63 @@ class JuheClient:
         return result
 
     def send_text(self, conversation_id, content):
-        conversation_id = str(conversation_id).strip()
-        if not conversation_id.startswith(("S:", "R:")):
-            conversation_id = f"S:{conversation_id}"
+        conversation_id = self._conversation_id(conversation_id)
         return self.request(
             "/msg/send_text",
             {"conversation_id": conversation_id, "content": str(content)},
         )
+
+    @staticmethod
+    def _conversation_id(conversation_id):
+        conversation_id = str(conversation_id).strip()
+        if not conversation_id.startswith(("S:", "R:")):
+            conversation_id = f"S:{conversation_id}"
+        return conversation_id
+
+    @staticmethod
+    def _required(data, *names):
+        for name in names:
+            value = data.get(name)
+            if value not in (None, ""):
+                return value
+        raise JuheError(f"聚合聊天媒体上传缺少字段：{'/'.join(names)}")
+
+    def get_cdn_info(self):
+        return self.request("/cdn/get_cdn_info")
+
+    def upload_c2c(self, file_url, file_type=5):
+        if not str(file_url).startswith("https://"):
+            raise JuheError("语音文件必须使用公网 HTTPS 地址")
+        cdn_result = self.get_cdn_info()
+        cdn_data = cdn_result.get("data") or {}
+        if not isinstance(cdn_data, dict):
+            raise JuheError("聚合聊天 CDN 信息格式错误")
+        base_request = {
+            "cdn_dns": self._required(cdn_data, "cdn_dns"),
+            "client_version": self._required(cdn_data, "client_version"),
+            "corp_id": self._required(cdn_data, "corp_id"),
+            "vid": self._required(cdn_data, "vid"),
+        }
+        return self.request(
+            "/cloud/c2c_upload",
+            {"base_request": base_request, "file_type": int(file_type), "url": str(file_url)},
+            timeout=60,
+        )
+
+    def send_voice_url(self, conversation_id, file_url, voice_time_ms):
+        upload_result = self.upload_c2c(file_url, file_type=5)
+        upload_data = upload_result.get("data") or {}
+        if not isinstance(upload_data, dict):
+            raise JuheError("聚合聊天语音上传结果格式错误")
+        payload = {
+            "conversation_id": self._conversation_id(conversation_id),
+            "file_id": self._required(upload_data, "file_id"),
+            "size": int(self._required(upload_data, "file_size", "size")),
+            "voice_time": max(1, int(voice_time_ms)),
+            "aes_key": self._required(upload_data, "aes_key"),
+            "md5": self._required(upload_data, "file_md5", "md5"),
+        }
+        return self.request("/msg/send_voice", payload)
 
     def get_profile(self):
         return self.request("/user/get_profile")

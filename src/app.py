@@ -470,6 +470,18 @@ class Handler(BaseHTTPRequestHandler):
                 if parts[3] == "push":
                     message = service.push_one(user_id, force=True)
                     return self._json({"message": message})
+                if parts[3] == "voice-test":
+                    user = service.get_user(user_id)
+                    if not user:
+                        return self._json({"error": "用户不存在"}, 404)
+                    voice_url = self._public_origin() + "/audio/voice-test.m4a"
+                    service.channel.send_voice_url(
+                        user,
+                        voice_url,
+                        2876,
+                        "Hello. Welcome to your daily English practice.",
+                    )
+                    return self._json({"ok": True})
             return self._json({"error": "Not found"}, 404)
         except WeComError as exc:
             return self._text(str(exc), 403)

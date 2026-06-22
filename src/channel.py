@@ -15,6 +15,9 @@ class ChannelAdapter:
     def send_link(self, user, title, url):
         raise NotImplementedError
 
+    def send_voice_url(self, user, url, duration_ms, transcript=""):
+        raise NotImplementedError
+
     def create_group(self, name):
         raise NotImplementedError
 
@@ -35,6 +38,13 @@ class MockWeComChannel(ChannelAdapter):
 
     def send_link(self, user, title, url):
         return self.send_text(user, f"{title}\n{url}")
+
+    def send_voice_url(self, user, url, duration_ms, transcript=""):
+        self.db.execute(
+            "INSERT INTO messages (user_id, direction, text, kind) VALUES (?, 'out', ?, 'voice')",
+            (user["id"], transcript or "[语音消息]"),
+        )
+        return {"ok": True, "channel": "mock"}
 
     def create_group(self, name):
         return {"ok": True, "group_id": f"mock:{name}"}
@@ -64,5 +74,21 @@ class WeComChannel(MockWeComChannel):
         self.db.execute(
             "INSERT INTO messages (user_id, direction, text, kind) VALUES (?, 'out', ?, 'text')",
             (user["id"], text),
+        )
+        return result
+
+    def send_voice_url(self, user, url, duration_ms, transcript=""):
+        channel_user_id = user["channel_user_id"]
+        is_demo = channel_user_id.startswith("wx_demo_") or channel_user_id.startswith("mock:")
+        if self.juhe_client.configured and not is_demo:
+            result = self.juhe_client.send_voice_url(channel_user_id, url, duration_ms)
+            result["channel"] = "juhe"
+        elif is_demo:
+            result = {"ok": True, "channel": "mock"}
+        else:
+            raise RuntimeError("当前渠道不支持语音消息")
+        self.db.execute(
+            "INSERT INTO messages (user_id, direction, text, kind) VALUES (?, 'out', ?, 'voice')",
+            (user["id"], transcript or "[语音消息]"),
         )
         return result
