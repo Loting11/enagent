@@ -371,6 +371,8 @@ class Handler(BaseHTTPRequestHandler):
         try:
             if path == "/api/health":
                 return self._json({"ok": True})
+            if path == "/audio/voice-test.m4a":
+                return self._static(path)
             if path == "/wecom/callback":
                 return self._text(self._wecom_verify(parse_qs(parsed.query)))
             if not self._require_auth():
