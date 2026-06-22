@@ -1,0 +1,16 @@
+[Unit]
+Description=Juhe WeCom Private CDN Service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/wecdn_dist_v2.8.3
+Environment=LD_LIBRARY_PATH=/home/wecdn_dist_v2.8.3/wecdn_service
+ExecStart=/home/wecdn_dist_v2.8.3/wecdn_service/wecdn_service --config=/home/wecdn_dist_v2.8.3/wecdn_service_config.ini
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
