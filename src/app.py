@@ -62,6 +62,22 @@ JUHE_FIELDS = {
     "private_cdn_url": ("JUHE_PRIVATE_CDN_URL", True),
 }
 
+VOICE_FIELDS = {
+    "enabled": ("TTS_ENABLED", False),
+    "provider": ("TTS_PROVIDER", False),
+    "api_base": ("TTS_API_BASE", False),
+    "region": ("TTS_REGION", False),
+    "model": ("TTS_MODEL", False),
+    "voice_id": ("TTS_VOICE_ID", False),
+    "accent": ("TTS_ACCENT", False),
+    "gender": ("TTS_GENDER", False),
+    "speed": ("TTS_SPEED", False),
+    "pitch": ("TTS_PITCH", False),
+    "instruction": ("TTS_INSTRUCTION", False),
+    "content_scope": ("TTS_CONTENT_SCOPE", False),
+    "api_key": ("TTS_API_KEY", True),
+}
+
 
 def save_env_updates(updates):
     env_path = ROOT / ".env"
@@ -92,6 +108,54 @@ def save_env_updates(updates):
             os.unlink(temp_name)
     for key, value in updates.items():
         os.environ[key] = value
+
+
+def voice_config():
+    defaults = {
+        "enabled": "false",
+        "provider": "azure",
+        "api_base": "",
+        "region": "",
+        "model": "",
+        "voice_id": "",
+        "accent": "en-US",
+        "gender": "female",
+        "speed": "1.0",
+        "pitch": "0",
+        "instruction": "清晰、自然、耐心，适合英语学习者跟读。",
+        "content_scope": "term_example",
+    }
+    result = {}
+    for field, (env_key, sensitive) in VOICE_FIELDS.items():
+        value = os.getenv(env_key, defaults.get(field, ""))
+        if sensitive:
+            result[f"{field}_configured"] = bool(value)
+        elif field == "enabled":
+            result[field] = value.lower() in ("1", "true", "yes", "on")
+        else:
+            result[field] = value
+    required = (result.get("provider"), result.get("voice_id"), result.get("api_key_configured"))
+    result["model_ready"] = all(required)
+    result["delivery_ready"] = result["enabled"] and result["model_ready"]
+    return result
+
+
+def save_voice_config(body, allow_sensitive):
+    updates = {}
+    for field, (env_key, sensitive) in VOICE_FIELDS.items():
+        if field not in body or (sensitive and not allow_sensitive):
+            continue
+        value = body[field]
+        if field == "enabled":
+            enabled = value if isinstance(value, bool) else str(value).lower() in ("1", "true", "yes", "on")
+            value = "true" if enabled else "false"
+        else:
+            value = " ".join(str(value).splitlines()).strip()
+        updates[env_key] = value
+        os.environ[env_key] = value
+    if updates:
+        save_env_updates(updates)
+    return voice_config()
 
 
 def wecom_config():
@@ -387,6 +451,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(wecom_config())
             if path == "/api/config/juhe":
                 return self._json(juhe_config())
+            if path == "/api/config/voice":
+                return self._json(voice_config())
             parts = path.strip("/").split("/")
             if len(parts) == 4 and parts[:2] == ["api", "users"] and parts[3] == "messages":
                 return self._json(service.messages(int(parts[2])))
@@ -469,6 +535,27 @@ class Handler(BaseHTTPRequestHandler):
                 if sensitive_present and not secure:
                     return self._json({"error": "当前连接不是 HTTPS，已拒绝保存敏感配置"}, 403)
                 return self._json(save_juhe_config(body, allow_sensitive=secure))
+            if path == "/api/config/voice":
+                forwarded_proto = self.headers.get("X-Forwarded-Proto", "").lower()
+                trust_proxy = os.getenv("TRUST_PROXY_HEADERS", "").lower() in ("1", "true", "yes")
+                secure = isinstance(self.connection, ssl.SSLSocket) or (
+                    trust_proxy and forwarded_proto == "https"
+                )
+                if "api_key" in body and not secure:
+                    return self._json({"error": "当前连接不是 HTTPS，已拒绝保存语音密钥"}, 403)
+                return self._json(save_voice_config(body, allow_sensitive=secure))
+            if path == "/api/config/voice/test":
+                config = voice_config()
+                missing = []
+                if not config.get("provider"):
+                    missing.append("模型服务")
+                if not config.get("voice_id"):
+                    missing.append("音色 ID")
+                if not config.get("api_key_configured"):
+                    missing.append("API Key")
+                if missing:
+                    return self._json({"error": "请先配置：" + "、".join(missing)}, 400)
+                return self._json({"ok": True, "message": "配置完整；接入密钥后可进行真实试听。"})
             parts = path.strip("/").split("/")
             if len(parts) == 4 and parts[:2] == ["api", "users"]:
                 user_id = int(parts[2])

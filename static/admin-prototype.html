@@ -29,6 +29,7 @@
         <p class="nav-label">Agent 资产</p>
         <button class="nav-item" data-page="knowledge"><span>知识库</span><em>12</em></button>
         <button class="nav-item" data-page="prompt"><span>提示词与模型</span><i class="status-dot"></i></button>
+        <button class="nav-item" data-page="voice"><span>语音与发音</span><i class="status-dot" id="voiceNavStatus"></i></button>
         <button class="nav-item" data-page="channel"><span>渠道与系统</span></button>
       </nav>
 
@@ -136,7 +137,17 @@
             </article>
 
             <article class="surface form-section">
-              <div class="section-head"><div><span class="section-index">04</span><h2>触达边界</h2></div></div>
+              <div class="section-head"><div><span class="section-index">04</span><h2>文字与语音组合</h2></div><label class="switch"><input id="deliveryVoiceEnabled" type="checkbox"><span></span>附带语音</label></div>
+              <p class="section-copy">语音始终跟随本条文字知识点发送，不会作为独立推送任务。</p>
+              <div class="field-grid two voice-delivery-fields" id="voiceDeliveryFields">
+                <label><span>朗读范围</span><select id="deliveryVoiceScope"><option value="term_example">英文单词＋英文例句</option><option value="example">仅英文例句</option><option value="all_english">知识点中的全部英文</option></select></label>
+                <label><span>语音方案</span><div class="linked-setting"><b id="deliveryVoiceProfile">尚未完成语音配置</b><button type="button" class="quiet-button" data-go="voice">配置方案 →</button></div></label>
+              </div>
+              <div class="sequence-note"><span>1</span><b>先发送文字知识点</b><i>→</i><span>2</span><b>紧接发送对应语音</b></div>
+            </article>
+
+            <article class="surface form-section">
+              <div class="section-head"><div><span class="section-index">05</span><h2>触达边界</h2></div></div>
               <div class="field-grid three">
                 <label><span>单用户每日上限</span><div class="unit-input"><input type="number" value="2"><i>条</i></div></label>
                 <label><span>失败重试</span><select><option>间隔 15 分钟，最多 2 次</option></select></label>
@@ -151,6 +162,7 @@
               <div class="phone-chat">
                 <div class="chat-date">上午 09:03</div>
                 <div class="bubble">今日 AI 英语：<b>inference</b><br><br>含义：推理；推断<br>模型根据已有信息得出结论的过程。<br><br>例句：The model performs inference in real time.<br>该模型会实时执行推理。<br><br>小测试：Which sentence uses “inference” correctly?<br>A. The inference is blue.<br>B. The model makes an inference.<br>C. I inference every day.<br><br>直接回复 A、B 或 C。</div>
+                <div class="voice-bubble" id="deliveryVoicePreview" hidden><button type="button" aria-label="播放预览">▶</button><div><b>单词与例句发音</b><span id="voicePreviewMeta">美音 · 女声 · 约 6 秒</span></div><i></i></div>
                 <div class="reply">B</div>
                 <div class="bubble short">回答正确 ✓<br><br>“make an inference” 表示「作出推断」。你已经连续答对 2 题。</div>
               </div>
@@ -250,6 +262,56 @@
               <div class="test-agent">简单说，<b>prompt</b> 是你给模型的完整输入，而 <b>instruction</b> 是其中用来告诉模型“要做什么”的指令。<br><br>例如：<br>“请用一句话解释 token” 是 instruction；连同背景、示例一起提交给模型的整段内容，才是 prompt。</div>
             </div>
             <form class="test-composer" id="testForm"><textarea id="testInput" placeholder="输入一条测试消息…"></textarea><div><span>不会发送给真实用户</span><button class="solid">运行测试 ↗</button></div></form>
+          </aside>
+        </div>
+      </section>
+
+      <section class="page" id="page-voice" data-title="语音与发音">
+        <div class="page-heading compact">
+          <div><p class="kicker">VOICE & PRONUNCIATION</p><h1>语音与发音</h1><p>配置语音模型与教学音色。语音只作为文字知识点的伴随内容发送。</p></div>
+          <div class="heading-actions"><span class="version-tag" id="voiceConfigState">尚未接入</span><button class="ghost" id="testVoiceConfig">检查配置</button><button class="solid" id="saveVoiceConfig">保存设置</button></div>
+        </div>
+
+        <div class="voice-layout">
+          <section class="voice-workbench">
+            <article class="surface form-section">
+              <div class="section-head"><div><span class="section-index">01</span><h2>模型接入</h2></div><span class="connection muted" id="voiceConnection"><i></i>等待配置</span></div>
+              <div class="field-grid two">
+                <label><span>语音服务</span><select id="voiceProvider"><option value="azure">Azure Speech</option><option value="tencent">腾讯云语音合成</option><option value="volcengine">火山引擎语音合成</option><option value="elevenlabs">ElevenLabs</option><option value="custom">自定义兼容接口</option></select></label>
+                <label><span>模型名称（可选）</span><input id="voiceModel" type="text" placeholder="按供应商文档填写"></label>
+                <label><span>API 地址（可选）</span><input id="voiceApiBase" type="text" placeholder="使用供应商默认地址可留空"></label>
+                <label><span>区域（可选）</span><input id="voiceRegion" type="text" placeholder="例如资源所在区域"></label>
+                <label class="wide-field"><span>API Key</span><input id="voiceApiKey" type="password" autocomplete="new-password" placeholder="尚未配置"><small id="voiceKeyStatus">密钥仅保存在服务器环境变量中</small></label>
+              </div>
+            </article>
+
+            <article class="surface form-section">
+              <div class="section-head"><div><span class="section-index">02</span><h2>默认教学音色</h2></div><label class="switch"><input id="voiceEnabled" type="checkbox"><span></span>允许用于推送</label></div>
+              <div class="field-grid three">
+                <label><span>口音</span><select id="voiceAccent"><option value="en-US">美音 · en-US</option><option value="en-GB">英音 · en-GB</option></select></label>
+                <label><span>声音</span><select id="voiceGender"><option value="female">女声</option><option value="male">男声</option></select></label>
+                <label><span>音色 ID</span><input id="voiceId" type="text" placeholder="供应商提供的 Voice ID"></label>
+              </div>
+              <div class="voice-sliders">
+                <label><span>语速 <b id="voiceSpeedValue">1.0×</b></span><input id="voiceSpeed" type="range" min="0.75" max="1.25" step="0.05" value="1"></label>
+                <label><span>音调 <b id="voicePitchValue">0</b></span><input id="voicePitch" type="range" min="-10" max="10" step="1" value="0"></label>
+              </div>
+              <label class="textarea-field"><span>发音说明</span><textarea id="voiceInstruction" rows="3" placeholder="例如：清晰、自然、耐心，适合英语学习者跟读。"></textarea><small>支持发音提示的模型会使用这段说明；传统 TTS 将使用语速、音调等参数。</small></label>
+            </article>
+
+            <article class="surface form-section relation-card">
+              <div class="section-head"><div><span class="section-index">03</span><h2>与文字内容的关系</h2></div><button class="quiet-button" type="button" data-go="delivery">打开推送规则 →</button></div>
+              <div class="relation-flow"><div><span>文字模板</span><b>知识点、释义、例句、测试题</b></div><i>＋</i><div><span>提取英文</span><b id="voiceScopeSummary">单词＋英文例句</b></div><i>→</i><div><span>企微送达</span><b>文字后紧跟语音</b></div></div>
+              <p>是否附带语音、朗读范围等内容策略在「推送规则」中控制；这里仅管理声音如何生成。</p>
+            </article>
+          </section>
+
+          <aside class="voice-preview surface">
+            <div class="test-head"><div><span>VOICE SAMPLE</span><b>发音效果预览</b></div><span class="format-tag">自动转 SILK</span></div>
+            <div class="voice-sample-copy"><span>今日 AI 英语</span><h2>inference</h2><p>The model performs inference in real time.</p><small>该模型会实时执行推理。</small></div>
+            <div class="large-player"><button type="button" id="playVoiceSample">▶</button><div><b id="voiceSampleName">默认教学音色</b><span id="voiceSampleMeta">美音 · 女声 · 标准语速</span></div><time>00:06</time></div>
+            <div class="waveform" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+            <p class="preview-note">保存配置后可生成真实试听；企微发送前会自动转换格式。</p>
           </aside>
         </div>
       </section>
