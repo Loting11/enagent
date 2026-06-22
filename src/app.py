@@ -486,7 +486,7 @@ class Handler(BaseHTTPRequestHandler):
                     service.channel.send_voice_url(
                         user,
                         voice_url,
-                        2876,
+                        3,
                         "Hello. Welcome to your daily English practice.",
                     )
                     return self._json({"ok": True})

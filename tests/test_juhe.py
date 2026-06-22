@@ -104,7 +104,7 @@ class JuheClientTest(unittest.TestCase):
             FakeResponse({"error_code": 0, "data": {}}),
         ]
 
-        self.client.send_voice_url("788123", "https://agent.example/voice.m4a", 2500)
+        self.client.send_voice_url("788123", "https://agent.example/voice.silk", 3)
 
         requests = [json.loads(call.args[0].data.decode("utf-8")) for call in mock_open.call_args_list]
         self.assertEqual([item["path"] for item in requests], [
@@ -112,7 +112,7 @@ class JuheClientTest(unittest.TestCase):
         ])
         self.assertEqual(requests[1]["data"]["file_type"], 5)
         self.assertEqual(requests[2]["data"]["conversation_id"], "S:788123")
-        self.assertEqual(requests[2]["data"]["voice_time"], 2500)
+        self.assertEqual(requests[2]["data"]["voice_time"], 3)
 
     @patch("src.juhe.urlopen")
     def test_private_cdn_upload_is_not_wrapped(self, mock_open):

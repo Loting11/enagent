@@ -142,7 +142,7 @@ class JuheClient:
             return self.request_private("/cloud/c2c_upload", payload, timeout=60)
         return self.request("/cloud/c2c_upload", payload, timeout=60)
 
-    def send_voice_url(self, conversation_id, file_url, voice_time_ms):
+    def send_voice_url(self, conversation_id, file_url, voice_time_seconds):
         upload_result = self.upload_c2c(file_url, file_type=5)
         upload_data = upload_result.get("data") or {}
         if not isinstance(upload_data, dict):
@@ -151,7 +151,7 @@ class JuheClient:
             "conversation_id": self._conversation_id(conversation_id),
             "file_id": self._required(upload_data, "file_id"),
             "size": int(self._required(upload_data, "file_size", "size")),
-            "voice_time": max(1, int(voice_time_ms)),
+            "voice_time": max(1, int(voice_time_seconds)),
             "aes_key": self._required(upload_data, "aes_key"),
             "md5": self._required(upload_data, "file_md5", "md5"),
         }
