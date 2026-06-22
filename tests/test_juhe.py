@@ -114,6 +114,30 @@ class JuheClientTest(unittest.TestCase):
         self.assertEqual(requests[2]["data"]["conversation_id"], "S:788123")
         self.assertEqual(requests[2]["data"]["voice_time"], 2500)
 
+    @patch("src.juhe.urlopen")
+    def test_private_cdn_upload_is_not_wrapped(self, mock_open):
+        client = JuheClient(
+            api_url="https://supplier.test/open/GuidRequest",
+            app_key="key",
+            app_secret="secret",
+            guid="device-guid",
+            private_cdn_url="http://127.0.0.1:34789",
+        )
+        mock_open.side_effect = [
+            FakeResponse(
+                {"error_code": 0, "data": {"cdn_dns": "cdn", "client_version": "5", "corp_id": "c", "vid": "v"}}
+            ),
+            FakeResponse(
+                {"error_code": 0, "data": {"file_id": "id", "file_size": 1, "file_md5": "md5", "aes_key": "aes"}}
+            ),
+        ]
+        client.upload_c2c("https://agent.example/voice.m4a")
+        private_request = mock_open.call_args_list[1].args[0]
+        self.assertEqual(private_request.full_url, "http://127.0.0.1:34789/cloud/c2c_upload")
+        payload = json.loads(private_request.data.decode("utf-8"))
+        self.assertNotIn("app_secret", payload)
+        self.assertEqual(payload["file_type"], 5)
+
 
 if __name__ == "__main__":
     unittest.main()

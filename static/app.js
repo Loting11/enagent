@@ -110,12 +110,16 @@ async function openJuheConfig(){
   const secret=juheForm.elements.app_secret; secret.value='';
   secret.placeholder=config.app_secret_configured?'已保存；留空表示不修改':'尚未配置';
   document.querySelector('[data-juhe-status="app_secret"]').textContent=config.app_secret_configured?'✓ 已安全保存':'';
+  const privateCdn=juheForm.elements.private_cdn_url; privateCdn.value='';
+  privateCdn.placeholder=config.private_cdn_url_configured?'已保存；留空表示不修改':'由供应商提供，语音功能必需';
+  document.querySelector('[data-juhe-status="private_cdn_url"]').textContent=config.private_cdn_url_configured?'✓ 已安全保存':'';
   const secure=location.protocol==='https:';
   const notice=document.querySelector('#juheSecurityNotice');
   notice.textContent=secure?'当前为 HTTPS 安全连接。配置只保存在服务器，不会写入代码仓库。':'当前为 HTTP，已禁止提交 App Secret。';
   notice.className=`notice ${secure?'safe':'warning'}`;
   secret.disabled=!secure;
-  document.querySelector('#juheStatus').innerHTML=`<span class="${config.callback_ready?'ready':''}">${config.callback_ready?'✓':'○'} 回调入口</span><span class="${config.send_ready?'ready':''}">${config.send_ready?'✓':'○'} 主动发送</span>`;
+  privateCdn.disabled=!secure;
+  document.querySelector('#juheStatus').innerHTML=`<span class="${config.callback_ready?'ready':''}">${config.callback_ready?'✓':'○'} 回调入口</span><span class="${config.send_ready?'ready':''}">${config.send_ready?'✓':'○'} 文本发送</span><span class="${config.voice_ready?'ready':''}">${config.voice_ready?'✓':'○'} 语音发送</span>`;
   document.querySelector('#juheCallbackUrl').textContent=secure?`${location.origin}${config.callback_path}`:`https://你的域名${config.callback_path}`;
   const test=document.querySelector('#testJuhe');
   test.disabled=!secure||!config.send_ready;
@@ -139,7 +143,7 @@ document.querySelector('#registerJuheCallback').onclick=async()=>{
 };
 juheForm.onsubmit=async e=>{
   e.preventDefault(); const body={};
-  ['api_url','app_key','guid','app_secret'].forEach(name=>{
+  ['api_url','app_key','guid','app_secret','private_cdn_url'].forEach(name=>{
     const input=juheForm.elements[name]; if(!input.disabled && input.value.trim()) body[name]=input.value.trim();
   });
   await api('/api/config/juhe',{method:'POST',body:JSON.stringify(body)});

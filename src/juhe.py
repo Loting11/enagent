@@ -15,13 +15,18 @@ class JuheError(Exception):
 class JuheClient:
     """Small adapter for the supplier's virtual WeCom client API."""
 
-    def __init__(self, api_url=None, app_key=None, app_secret=None, guid=None):
+    def __init__(self, api_url=None, app_key=None, app_secret=None, guid=None, private_cdn_url=None):
         self.api_url = api_url or os.getenv("JUHE_API_URL", DEFAULT_API_URL)
         self.app_key = app_key if app_key is not None else os.getenv("JUHE_APP_KEY", "")
         self.app_secret = (
             app_secret if app_secret is not None else os.getenv("JUHE_APP_SECRET", "")
         )
         self.guid = guid if guid is not None else os.getenv("JUHE_GUID", "")
+        self.private_cdn_url = (
+            private_cdn_url
+            if private_cdn_url is not None
+            else os.getenv("JUHE_PRIVATE_CDN_URL", "")
+        ).rstrip("/")
 
     @property
     def configured(self):
@@ -70,6 +75,30 @@ class JuheClient:
             raise JuheError(f"聚合聊天接口错误：{message}")
         return result
 
+    def request_private(self, path, data=None, timeout=60):
+        if not self.private_cdn_url.startswith(("http://", "https://")):
+            raise JuheError("聚合聊天私有 CDN 地址尚未配置")
+        request = Request(
+            self.private_cdn_url + "/" + str(path).lstrip("/"),
+            data=json.dumps(data or {}, ensure_ascii=False).encode("utf-8"),
+            headers={"Content-Type": "application/json", "Accept": "application/json"},
+            method="POST",
+        )
+        try:
+            with urlopen(request, timeout=timeout) as response:
+                result = json.loads(response.read().decode("utf-8") or "{}")
+        except HTTPError as exc:
+            raise JuheError(f"聚合聊天私有 CDN 返回 HTTP {exc.code}") from exc
+        except (URLError, TimeoutError) as exc:
+            raise JuheError("聚合聊天私有 CDN 连接失败") from exc
+        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise JuheError("聚合聊天私有 CDN 返回了无效数据") from exc
+        code = result.get("code", result.get("err_code", result.get("error_code", 0)))
+        if code not in (0, "0", None):
+            message = result.get("message") or result.get("err_msg") or result.get("error_message") or "未知错误"
+            raise JuheError(f"聚合聊天私有 CDN 错误：{message}")
+        return result
+
     def send_text(self, conversation_id, content):
         conversation_id = self._conversation_id(conversation_id)
         return self.request(
@@ -108,11 +137,10 @@ class JuheClient:
             "corp_id": self._required(cdn_data, "corp_id"),
             "vid": self._required(cdn_data, "vid"),
         }
-        return self.request(
-            "/cloud/c2c_upload",
-            {"base_request": base_request, "file_type": int(file_type), "url": str(file_url)},
-            timeout=60,
-        )
+        payload = {"base_request": base_request, "file_type": int(file_type), "url": str(file_url)}
+        if self.private_cdn_url:
+            return self.request_private("/cloud/c2c_upload", payload, timeout=60)
+        return self.request("/cloud/c2c_upload", payload, timeout=60)
 
     def send_voice_url(self, conversation_id, file_url, voice_time_ms):
         upload_result = self.upload_c2c(file_url, file_type=5)

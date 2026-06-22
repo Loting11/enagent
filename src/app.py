@@ -59,6 +59,7 @@ JUHE_FIELDS = {
     "app_key": ("JUHE_APP_KEY", False),
     "guid": ("JUHE_GUID", False),
     "app_secret": ("JUHE_APP_SECRET", True),
+    "private_cdn_url": ("JUHE_PRIVATE_CDN_URL", True),
 }
 
 
@@ -143,6 +144,9 @@ def juhe_config():
     result["send_ready"] = all(
         os.getenv(key, "") for key in ("JUHE_APP_KEY", "JUHE_APP_SECRET", "JUHE_GUID")
     )
+    result["voice_ready"] = result["send_ready"] and bool(
+        os.getenv("JUHE_PRIVATE_CDN_URL", "")
+    )
     return result
 
 
@@ -158,6 +162,8 @@ def save_juhe_config(values, allow_sensitive=False):
             raise ValueError(f"{field} 不能包含换行")
         if field == "api_url" and value and not value.startswith("https://"):
             raise ValueError("API 地址必须使用 HTTPS")
+        if field == "private_cdn_url" and value and not value.startswith(("http://", "https://")):
+            raise ValueError("私有 CDN 地址必须以 http:// 或 https:// 开头")
         updates[env_key] = value
     if not os.getenv("JUHE_CALLBACK_TOKEN", ""):
         updates["JUHE_CALLBACK_TOKEN"] = secrets.token_urlsafe(32)
