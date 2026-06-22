@@ -371,7 +371,7 @@ class Handler(BaseHTTPRequestHandler):
         try:
             if path == "/api/health":
                 return self._json({"ok": True})
-            if path == "/audio/voice-test.m4a":
+            if path in ("/audio/voice-test.m4a", "/audio/voice-test.silk"):
                 return self._static(path)
             if path == "/wecom/callback":
                 return self._text(self._wecom_verify(parse_qs(parsed.query)))
@@ -482,7 +482,7 @@ class Handler(BaseHTTPRequestHandler):
                     user = service.get_user(user_id)
                     if not user:
                         return self._json({"error": "用户不存在"}, 404)
-                    voice_url = self._public_origin() + "/audio/voice-test.m4a"
+                    voice_url = self._public_origin() + "/audio/voice-test.silk"
                     service.channel.send_voice_url(
                         user,
                         voice_url,
