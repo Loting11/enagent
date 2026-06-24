@@ -1,5 +1,7 @@
 # 企微英语知识订阅 Agent — MVP
 
+项目完整说明见：[docs/PROJECT.md](docs/PROJECT.md)
+
 这是一个不依赖真实企微凭据即可运行的功能 Demo，已经包含：
 
 - 模拟企微用户添加与自动欢迎
