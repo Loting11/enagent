@@ -2,7 +2,13 @@ import json
 import unittest
 from unittest.mock import patch
 
-from src.juhe import JuheClient, JuheError, juhe_event_key, parse_juhe_callback
+from src.juhe import (
+    JuheClient,
+    JuheError,
+    RequestRateLimiter,
+    juhe_event_key,
+    parse_juhe_callback,
+)
 
 
 class FakeResponse:
@@ -137,6 +143,37 @@ class JuheClientTest(unittest.TestCase):
         payload = json.loads(private_request.data.decode("utf-8"))
         self.assertNotIn("app_secret", payload)
         self.assertEqual(payload["file_type"], 5)
+
+    @patch("src.juhe.urlopen")
+    def test_rate_limits_after_window_overflow_and_recovers(self, mock_open):
+        now = [100.0]
+
+        def clock():
+            return now[0]
+
+        client = JuheClient(
+            api_url="https://supplier.test/open/GuidRequest",
+            app_key="key",
+            app_secret="secret",
+            guid="device-guid",
+            rate_limiter=RequestRateLimiter(
+                max_requests=2,
+                window_seconds=60,
+                blocked_seconds=1800,
+                clock=clock,
+            ),
+        )
+        mock_open.return_value = FakeResponse({"code": 0, "data": {}})
+
+        client.get_profile()
+        client.get_profile()
+        with self.assertRaisesRegex(JuheError, "请求过于频繁"):
+            client.get_profile()
+        self.assertEqual(mock_open.call_count, 2)
+
+        now[0] += 1800
+        client.get_profile()
+        self.assertEqual(mock_open.call_count, 3)
 
 
 if __name__ == "__main__":

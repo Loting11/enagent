@@ -1,21 +1,77 @@
 import json
 import os
 import hashlib
+import threading
+import time
+from collections import deque
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 
 DEFAULT_API_URL = "https://chat-api.juhebot.com/open/GuidRequest"
+JUHE_RATE_LIMIT_MAX_REQUESTS = 100
+JUHE_RATE_LIMIT_WINDOW_SECONDS = 60
+JUHE_RATE_LIMIT_BLOCK_SECONDS = 30 * 60
 
 
 class JuheError(Exception):
     pass
 
 
+class RequestRateLimiter:
+    """Rolling-window limiter with a temporary block after the first overflow."""
+
+    def __init__(
+        self,
+        max_requests=JUHE_RATE_LIMIT_MAX_REQUESTS,
+        window_seconds=JUHE_RATE_LIMIT_WINDOW_SECONDS,
+        blocked_seconds=JUHE_RATE_LIMIT_BLOCK_SECONDS,
+        clock=None,
+    ):
+        self.max_requests = int(max_requests)
+        self.window_seconds = int(window_seconds)
+        self.blocked_seconds = int(blocked_seconds)
+        self.clock = clock or time.monotonic
+        self._timestamps = deque()
+        self._blocked_until = 0
+        self._lock = threading.Lock()
+
+    def check(self):
+        now = self.clock()
+        with self._lock:
+            if now < self._blocked_until:
+                raise JuheError(self._blocked_message(now))
+
+            while self._timestamps and now - self._timestamps[0] >= self.window_seconds:
+                self._timestamps.popleft()
+
+            if len(self._timestamps) >= self.max_requests:
+                self._blocked_until = now + self.blocked_seconds
+                raise JuheError(self._blocked_message(now))
+
+            self._timestamps.append(now)
+
+    def _blocked_message(self, now):
+        remaining_seconds = max(1, int(self._blocked_until - now))
+        remaining_minutes = (remaining_seconds + 59) // 60
+        return f"聚合聊天接口请求过于频繁，已限流 {remaining_minutes} 分钟后再试"
+
+
+_JUHE_RATE_LIMITER = RequestRateLimiter()
+
+
 class JuheClient:
     """Small adapter for the supplier's virtual WeCom client API."""
 
-    def __init__(self, api_url=None, app_key=None, app_secret=None, guid=None, private_cdn_url=None):
+    def __init__(
+        self,
+        api_url=None,
+        app_key=None,
+        app_secret=None,
+        guid=None,
+        private_cdn_url=None,
+        rate_limiter=None,
+    ):
         self.api_url = api_url or os.getenv("JUHE_API_URL", DEFAULT_API_URL)
         self.app_key = app_key if app_key is not None else os.getenv("JUHE_APP_KEY", "")
         self.app_secret = (
@@ -27,6 +83,7 @@ class JuheClient:
             if private_cdn_url is not None
             else os.getenv("JUHE_PRIVATE_CDN_URL", "")
         ).rstrip("/")
+        self.rate_limiter = rate_limiter or _JUHE_RATE_LIMITER
 
     @property
     def configured(self):
@@ -40,6 +97,7 @@ class JuheClient:
     def request(self, path, data=None, timeout=20):
         if not self.configured:
             raise JuheError("聚合聊天配置尚未完成")
+        self.rate_limiter.check()
         payload = {
             "app_key": self.app_key,
             "app_secret": self.app_secret,
