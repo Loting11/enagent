@@ -19,7 +19,7 @@ from agent import AgentService
 from channel import WeComChannel
 from content import DEMO_CONTENT
 from db import Database
-from openclaw import DEFAULT_CLI_PATH, OpenClawClient, OpenClawError, OpenClawLoginSession
+from openclaw import DEFAULT_CLI_PATH, OpenClawClient, OpenClawError, OpenClawLoginSession, cli_available, resolve_cli_path
 from service import EnglishAgentService
 from wecom import WeComCrypto, WeComError, parse_encrypted_xml, parse_message_xml
 from juhe import DEFAULT_API_URL, JuheClient, JuheError, juhe_event_key, parse_juhe_callback
@@ -266,7 +266,9 @@ def openclaw_config(public_origin=""):
     result["callback_path"] = f"/openclaw/callback?token={token}" if token else "/openclaw/callback"
     result["callback_url"] = (public_origin.rstrip("/") + result["callback_path"]) if public_origin else result["callback_path"]
     result["callback_ready"] = bool(token)
-    result["send_ready"] = bool(result["enabled"] and result["cli_path"] and result["account_id"])
+    result["cli_path"] = resolve_cli_path(result["cli_path"])
+    result["cli_ready"] = cli_available(result["cli_path"])
+    result["send_ready"] = bool(result["enabled"] and result["cli_ready"] and result["account_id"])
     return result
 
 

@@ -76,6 +76,19 @@ jobs:
                 python3 -m venv .venv
               fi
             fi
+            if ! command -v node >/dev/null 2>&1 || ! command -v npm >/dev/null 2>&1; then
+              curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
+              sudo apt-get install -y nodejs
+            fi
+            if ! command -v openclaw >/dev/null 2>&1; then
+              curl -fsSL https://openclaw.ai/install.sh | bash
+              if test -x "$HOME/.local/bin/openclaw"; then
+                sudo ln -sf "$HOME/.local/bin/openclaw" /usr/local/bin/openclaw
+              fi
+            fi
+            if command -v npx >/dev/null 2>&1; then
+              npx -y @tencent-weixin/openclaw-weixin-cli install || true
+            fi
             .venv/bin/pip install --disable-pip-version-check -q -r requirements.txt
             .venv/bin/python -m unittest discover -s tests -v
             .venv/bin/python -m py_compile src/*.py

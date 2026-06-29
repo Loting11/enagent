@@ -4,7 +4,7 @@ import unittest
 
 from src.channel import WeComChannel
 from src.db import Database
-from src.openclaw import OpenClawClient, OpenClawError
+from src.openclaw import DEFAULT_CLI_PATH, OpenClawClient, OpenClawError
 
 
 class FakeRunner:
@@ -28,6 +28,9 @@ class FakeRunner:
 
 
 class OpenClawClientTest(unittest.TestCase):
+    def test_default_cli_path_is_portable(self):
+        self.assertEqual(DEFAULT_CLI_PATH, "openclaw")
+
     def test_send_text_uses_configured_account_and_target(self):
         runner = FakeRunner()
         client = OpenClawClient(
@@ -51,7 +54,7 @@ class OpenClawClientTest(unittest.TestCase):
 
     def test_login_command_can_target_channel_and_account(self):
         client = OpenClawClient(
-            cli_path="/bin/openclaw",
+            cli_path="/bin/sh",
             channel="openclaw-weixin",
             account_id="wechat-bot",
             enabled=True,
@@ -60,7 +63,7 @@ class OpenClawClientTest(unittest.TestCase):
 
         self.assertEqual(
             client.login_command("new-bot"),
-            ["/bin/openclaw", "channels", "login", "--channel", "openclaw-weixin", "--account", "new-bot"],
+            ["/bin/sh", "channels", "login", "--channel", "openclaw-weixin", "--account", "new-bot"],
         )
 
     def test_rejects_unconfigured_client(self):

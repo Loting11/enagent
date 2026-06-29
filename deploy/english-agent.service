@@ -11,6 +11,7 @@ ExecStart=/home/ubuntu/english-agent/.venv/bin/python src/app.py
 Restart=always
 RestartSec=3
 Environment=PORT=8080
+Environment=PATH=/usr/local/bin:/usr/bin:/bin:/home/ubuntu/.local/bin
 
 [Install]
 WantedBy=multi-user.target

@@ -177,9 +177,11 @@ async function openOpenclawConfig(){
   const config=await api('/api/config/openclaw');
   ['cli_path','channel','account_id','bot_name'].forEach(name=>openclawForm.elements[name].value=config[name]||'');
   openclawForm.elements.enabled.value=config.enabled?'true':'false';
-  document.querySelector('#openclawStatus').innerHTML=`<span class="${config.callback_ready?'ready':''}">${config.callback_ready?'✓':'○'} 回调令牌</span><span class="${config.send_ready?'ready':''}">${config.send_ready?'✓':'○'} 主动发送</span>`;
+  document.querySelector('#openclawStatus').innerHTML=`<span class="${config.cli_ready?'ready':''}">${config.cli_ready?'✓':'○'} OpenClaw CLI</span><span class="${config.callback_ready?'ready':''}">${config.callback_ready?'✓':'○'} 回调令牌</span><span class="${config.send_ready?'ready':''}">${config.send_ready?'✓':'○'} 主动发送</span>`;
   document.querySelector('#openclawCallbackUrl').textContent=config.callback_url;
   document.querySelector('#openclawOutput').hidden=true;
+  document.querySelector('#startOpenclawLogin').disabled=!config.cli_ready;
+  document.querySelector('#startOpenclawLogin').title=config.cli_ready?'':'服务器未安装 OpenClaw，暂时不能生成二维码';
   openclawDialog.showModal();
 }
 

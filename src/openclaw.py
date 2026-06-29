@@ -2,15 +2,43 @@ import json
 import os
 import pty
 import select
+import shutil
 import subprocess
 import time
 
 
-DEFAULT_CLI_PATH = "/Users/zhouti/.local/opt/node-v24.17.0-darwin-arm64/bin/openclaw"
+DEFAULT_CLI_PATH = "openclaw"
+CLI_CANDIDATES = (
+    "openclaw",
+    "/home/ubuntu/.local/bin/openclaw",
+    "/usr/local/bin/openclaw",
+    "/Users/zhouti/.local/opt/node-v24.17.0-darwin-arm64/bin/openclaw",
+)
 
 
 class OpenClawError(Exception):
     pass
+
+
+def resolve_cli_path(configured_path=""):
+    if configured_path:
+        return configured_path
+    for path in CLI_CANDIDATES:
+        if not path:
+            continue
+        if os.path.isabs(path) and os.path.exists(path) and os.access(path, os.X_OK):
+            return path
+        found = shutil.which(path)
+        if found:
+            return found
+    return DEFAULT_CLI_PATH
+
+
+def cli_available(configured_path=""):
+    path = resolve_cli_path(configured_path)
+    if os.path.isabs(path):
+        return os.path.exists(path) and os.access(path, os.X_OK)
+    return shutil.which(path) is not None
 
 
 class OpenClawClient:
@@ -22,7 +50,8 @@ class OpenClawClient:
         enabled=None,
         runner=None,
     ):
-        self.cli_path = cli_path or os.getenv("OPENCLAW_CLI_PATH", DEFAULT_CLI_PATH)
+        configured_cli = cli_path if cli_path is not None else os.getenv("OPENCLAW_CLI_PATH", "")
+        self.cli_path = resolve_cli_path(configured_cli)
         self.channel = channel if channel is not None else os.getenv("OPENCLAW_CHANNEL", "openclaw-weixin")
         self.account_id = account_id if account_id is not None else os.getenv("OPENCLAW_ACCOUNT_ID", "")
         raw_enabled = enabled if enabled is not None else os.getenv("OPENCLAW_ENABLED", "")
@@ -44,7 +73,9 @@ class OpenClawClient:
                 timeout=timeout,
             )
         except FileNotFoundError as exc:
-            raise OpenClawError("OpenClaw 命令不存在，请检查 CLI 路径") from exc
+            raise OpenClawError(
+                "服务器未安装 OpenClaw，或 CLI 路径不可执行。请先在服务器安装 OpenClaw，或将 OPENCLAW_CLI_PATH 指向正确路径。"
+            ) from exc
         except subprocess.TimeoutExpired as exc:
             raise OpenClawError("OpenClaw 命令执行超时") from exc
 
@@ -57,6 +88,10 @@ class OpenClawClient:
         return self._run(["channels", "status", "--probe"], timeout=60)
 
     def login_command(self, account_id=""):
+        if not cli_available(self.cli_path):
+            raise OpenClawError(
+                "服务器未安装 OpenClaw，暂时不能生成微信登录二维码。请先完成服务器 OpenClaw 安装。"
+            )
         args = [self.cli_path, "channels", "login", "--channel", self.channel]
         if account_id:
             args.extend(["--account", account_id])
