@@ -26,7 +26,7 @@ async function refresh() {
   }
 }
 
-function statusLabel(status){return {pending:'未订阅',active:'订阅中',paused:'已暂停',unsubscribed:'已退订'}[status]||status}
+function statusLabel(status){return {pending:'待审核',active:'订阅中',paused:'已暂停',unsubscribed:'已退订'}[status]||status}
 
 async function selectUser(id){
   const users=await api('/api/users'); selectedUser=users.find(u=>u.id===id); await refresh();
@@ -36,6 +36,9 @@ async function renderChat(){
   document.querySelector('#empty').hidden=true; document.querySelector('#chat').hidden=false;
   document.querySelector('#chatName').textContent=selectedUser.name;
   document.querySelector('#chatStatus').textContent=`${statusLabel(selectedUser.subscription_status)} · 难度 ${selectedUser.difficulty}`;
+  const needsReview=selectedUser.channel_user_id.startsWith('openclaw:')&&selectedUser.subscription_status==='pending';
+  document.querySelector('#approveUser').hidden=!needsReview;
+  document.querySelector('#rejectUser').hidden=!needsReview;
   const messages=await api(`/api/users/${selectedUser.id}/messages`);
   const box=document.querySelector('#messages');
   box.innerHTML=messages.map(m=>`<div class="message ${m.direction}">${escapeHtml(m.text)}<time>${m.direction==='in'?'用户':'Agent'} · ${m.created_at}</time></div>`).join('');
@@ -58,6 +61,8 @@ document.querySelector('#messageForm').onsubmit=async e=>{
 
 document.querySelectorAll('.quick button').forEach(b=>b.onclick=()=>{document.querySelector('#messageInput').value=b.dataset.text;document.querySelector('#messageForm').requestSubmit()});
 document.querySelector('#pushOne').onclick=async()=>{await api(`/api/users/${selectedUser.id}/push`,{method:'POST',body:'{}'});toast('知识点已推送');await refresh()};
+document.querySelector('#approveUser').onclick=async()=>{await api(`/api/users/${selectedUser.id}/approve`,{method:'POST',body:'{}'});toast('已通过审核');await refresh()};
+document.querySelector('#rejectUser').onclick=async()=>{await api(`/api/users/${selectedUser.id}/reject`,{method:'POST',body:'{}'});toast('已拒绝申请');await refresh()};
 document.querySelector('#runPush').onclick=async()=>{const r=await api('/api/push/run',{method:'POST',body:'{}'});toast(`已向 ${r.sent} 位订阅用户推送`);await refresh()};
 
 const wecomDialog=document.querySelector('#wecomDialog');
@@ -148,6 +153,66 @@ juheForm.onsubmit=async e=>{
   });
   await api('/api/config/juhe',{method:'POST',body:JSON.stringify(body)});
   juheDialog.close(); toast('聚合聊天配置已保存');
+};
+
+const openclawDialog=document.querySelector('#openclawDialog');
+const openclawForm=document.querySelector('#openclawForm');
+let openclawLoginTimer=null;
+
+function renderOpenclawLogin(result){
+  const output=document.querySelector('#openclawOutput');
+  output.hidden=false;
+  output.textContent=result.output||'等待 OpenClaw 输出二维码…';
+  if(!result.running&&openclawLoginTimer){
+    clearInterval(openclawLoginTimer);openclawLoginTimer=null;
+  }
+}
+
+async function pollOpenclawLogin(){
+  try{renderOpenclawLogin(await api('/api/config/openclaw/login'));}
+  catch(error){document.querySelector('#openclawOutput').textContent=error.message;}
+}
+
+async function openOpenclawConfig(){
+  const config=await api('/api/config/openclaw');
+  ['cli_path','channel','account_id','bot_name'].forEach(name=>openclawForm.elements[name].value=config[name]||'');
+  openclawForm.elements.enabled.value=config.enabled?'true':'false';
+  document.querySelector('#openclawStatus').innerHTML=`<span class="${config.callback_ready?'ready':''}">${config.callback_ready?'✓':'○'} 回调令牌</span><span class="${config.send_ready?'ready':''}">${config.send_ready?'✓':'○'} 主动发送</span>`;
+  document.querySelector('#openclawCallbackUrl').textContent=config.callback_url;
+  document.querySelector('#openclawOutput').hidden=true;
+  openclawDialog.showModal();
+}
+
+document.querySelector('#openOpenclaw').onclick=()=>openOpenclawConfig().catch(e=>toast(e.message));
+document.querySelector('#closeOpenclaw').onclick=()=>openclawDialog.close();
+document.querySelector('#cancelOpenclaw').onclick=()=>openclawDialog.close();
+document.querySelector('#startOpenclawLogin').onclick=async()=>{
+  const accountId=openclawForm.elements.account_id.value.trim();
+  renderOpenclawLogin(await api('/api/config/openclaw/login/start',{method:'POST',body:JSON.stringify({account_id:accountId})}));
+  if(openclawLoginTimer)clearInterval(openclawLoginTimer);
+  openclawLoginTimer=setInterval(pollOpenclawLogin,1600);
+};
+document.querySelector('#stopOpenclawLogin').onclick=async()=>{
+  renderOpenclawLogin(await api('/api/config/openclaw/login/stop',{method:'POST',body:'{}'}));
+  if(openclawLoginTimer){clearInterval(openclawLoginTimer);openclawLoginTimer=null;}
+};
+document.querySelector('#checkOpenclaw').onclick=async()=>{
+  const output=document.querySelector('#openclawOutput');
+  output.hidden=false; output.textContent='正在检查 OpenClaw 状态…';
+  try{
+    const result=await api('/api/config/openclaw/status',{method:'POST',body:'{}'});
+    output.textContent=result.output||'OpenClaw 状态正常';
+  }catch(error){
+    output.textContent=error.message;
+  }
+};
+openclawForm.onsubmit=async e=>{
+  e.preventDefault(); const body={};
+  ['enabled','cli_path','channel','account_id','bot_name'].forEach(name=>{
+    const input=openclawForm.elements[name]; body[name]=input.value.trim();
+  });
+  await api('/api/config/openclaw',{method:'POST',body:JSON.stringify(body)});
+  openclawDialog.close(); toast('OpenClaw 微信入口配置已保存');
 };
 
 refresh().catch(e=>toast(e.message));

@@ -44,6 +44,17 @@ class AgentFlowTest(unittest.TestCase):
         self.assertEqual(same_user["id"], user["id"])
         self.assertEqual(len(self.service.messages(user["id"])), 1)
 
+    def test_openclaw_user_requires_admin_approval(self):
+        reply = self.service.receive_from_channel("openclaw:user-1", "开始", name="微信用户")
+        user = self.service.get_user_by_channel_id("openclaw:user-1")
+        self.assertEqual(user["subscription_status"], "pending")
+        self.assertIn("管理员审核", reply)
+
+        approved = self.service.approve_user(user["id"])
+        self.assertEqual(approved["subscription_status"], "active")
+        self.service.receive(approved["id"], "来一个")
+        self.assertIsNotNone(self.service.get_user(approved["id"])["current_content_id"])
+
 
 if __name__ == "__main__":
     unittest.main()

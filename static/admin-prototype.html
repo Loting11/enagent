@@ -27,7 +27,7 @@
         <button class="nav-item" data-page="delivery"><span>推送规则</span><i class="status-dot live"></i></button>
         <button class="nav-item" data-page="audience"><span>用户与分群</span></button>
         <p class="nav-label">Agent 资产</p>
-        <button class="nav-item" data-page="knowledge"><span>知识库</span><em>12</em></button>
+        <button class="nav-item" data-page="knowledge"><span>知识库</span><em>100</em></button>
         <button class="nav-item" data-page="prompt"><span>提示词与模型</span><i class="status-dot"></i></button>
         <button class="nav-item" data-page="voice"><span>语音与发音</span><i class="status-dot" id="voiceNavStatus"></i></button>
         <button class="nav-item" data-page="channel"><span>渠道与系统</span></button>
@@ -43,6 +43,7 @@
       <header class="topbar">
         <div class="breadcrumb"><span>EnAgent</span><b>/</b><strong id="pageCrumb">总览</strong></div>
         <div class="top-actions">
+          <button class="ghost" id="backToConsole" type="button">返回对话台</button>
           <label class="theme-picker">界面风格
             <select id="themeSelect">
               <option value="editorial">编辑部</option>
@@ -126,7 +127,7 @@
             <article class="surface form-section">
               <div class="section-head"><div><span class="section-index">03</span><h2>内容策略</h2></div><button class="quiet-button" data-go="knowledge">查看内容池</button></div>
               <div class="field-grid two">
-                <label><span>知识库</span><select><option>AI 行业常用英语 · 12 条</option></select></label>
+                <label><span>知识库</span><select><option>AI 行业常用英语 · 100 条</option></select></label>
                 <label><span>难度分配</span><select><option>跟随用户当前等级</option><option>统一难度</option></select></label>
               </div>
               <div class="rule-list">
@@ -179,13 +180,13 @@
           <div class="heading-actions"><button class="ghost" id="importKnowledge">导入内容</button><button class="solid" id="newKnowledge">新建知识点</button></div>
         </div>
         <div class="library-bar surface">
-          <div><span class="library-monogram">AI</span><p><b>AI 行业常用英语</b><small>12 个知识点 · 9 个已发布 · 3 个待审核</small></p></div>
+          <div><span class="library-monogram">AI</span><p><b>AI 行业常用英语</b><small>100 个知识点 · 100 个已发布 · 0 个待审核</small></p></div>
           <div class="library-actions"><button>教研框架</button><button>来源设置</button><button>•••</button></div>
         </div>
         <div class="knowledge-layout">
           <aside class="surface filters">
             <h3>内容视图</h3>
-            <button class="active">全部内容 <b>12</b></button><button>已发布 <b>9</b></button><button>待审核 <b>3</b></button><button>草稿 <b>0</b></button>
+            <button class="active">全部内容 <b>100</b></button><button>已发布 <b>100</b></button><button>待审核 <b>0</b></button><button>草稿 <b>0</b></button>
             <hr><h3>主题</h3>
             <button>基础概念 <b>5</b></button><button>模型训练 <b>4</b></button><button>产品应用 <b>3</b></button>
             <hr><h3>难度</h3>

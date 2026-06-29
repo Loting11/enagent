@@ -43,6 +43,7 @@ function showDialog(title,text){document.querySelector('#dialogTitle').textConte
 document.querySelector('#closeDialog').onclick=()=>dialog.close();
 document.querySelector('#publishGlobal').onclick=()=>showDialog('3 项草稿已准备发布','正式系统中，这一步会展示变更摘要和受影响用户，确认后再生效。');
 document.querySelector('#previewGlobal').onclick=()=>{openPage('delivery');showToast('已打开用户视角预览');};
+document.querySelector('#backToConsole').onclick=()=>{location.href='/';};
 document.querySelector('#publishRule').onclick=async()=>{
   try{await saveVoiceSettings({fromDelivery:true});showDialog('推送规则已发布','新的规则将在下一次计划任务执行时生效；语音将按当前策略紧跟文字知识点发送。');}
   catch(error){showToast(error.message);}

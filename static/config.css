@@ -1,9 +1,10 @@
 .header-actions{display:flex;gap:10px}
 dialog{width:min(760px,calc(100% - 32px));border:0;border-radius:18px;padding:0;background:var(--white);color:var(--ink);box-shadow:0 28px 90px rgba(0,0,0,.22)}
 dialog::backdrop{background:rgba(16,25,20,.55);backdrop-filter:blur(3px)}
-dialog form{padding:24px}.dialog-head,.dialog-actions{display:flex;align-items:center;justify-content:space-between}.dialog-head{margin-bottom:18px}.dialog-head h2{font-size:24px;margin-top:3px}.dialog-head #closeWecom,.dialog-head #closeJuhe{font-size:23px;border:0;background:transparent}
+dialog form{padding:24px}.dialog-head,.dialog-actions{display:flex;align-items:center;justify-content:space-between}.dialog-head{margin-bottom:18px}.dialog-head h2{font-size:24px;margin-top:3px}.dialog-head #closeWecom,.dialog-head #closeJuhe,.dialog-head #closeOpenclaw{font-size:23px;border:0;background:transparent}
 .notice{border-radius:11px;padding:11px 13px;margin-bottom:18px;font-size:13px}.notice.warning{background:#fff3d6;color:#765418;border:1px solid #ecd69f}.notice.safe{background:#e9f3eb;color:var(--green);border:1px solid #c9decf}
 .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}.form-grid label{font-size:13px;font-weight:650}.form-grid input{display:block;width:100%;margin-top:6px;border:1px solid var(--line);border-radius:9px;padding:10px 11px;background:white;outline:none}.form-grid input:focus{border-color:var(--green)}.form-grid input:disabled{background:#efeee9;color:#8b918d}.form-grid small{display:block;color:var(--green);font-weight:500;margin-top:4px}
 .callback{display:flex;flex-direction:column;gap:5px;margin:18px 0;padding:12px 14px;background:#f1f3ed;border-radius:10px;color:var(--muted);font-size:12px}.callback code{color:var(--ink);overflow-wrap:anywhere}.dialog-actions{justify-content:flex-end;gap:10px;border-top:1px solid var(--line);padding-top:18px}
 .integration-status{display:flex;gap:10px;margin-top:17px}.integration-status span{padding:5px 9px;border-radius:20px;background:#ecefe9;color:var(--muted);font-size:12px}.integration-status span.ready{background:#e4f2e8;color:var(--green)}
+.command-output{max-height:210px;overflow:auto;background:#17211b;color:#f4f1ea;border-radius:10px;padding:12px;font-size:11px;white-space:pre-wrap}
 @media(max-width:800px){.form-grid{grid-template-columns:1fr}}

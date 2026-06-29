@@ -70,6 +70,16 @@ GUID 后，系统会生成带随机认证令牌的回调地址。将完整地址
 系统会在本地限制聚合聊天主 API 的请求频率：60 秒内最多 100 次；超过后暂停
 30 分钟再恢复，避免触发供应商侧限流。
 
+## OpenClaw 微信入口
+
+后台的“微信 OpenClaw”支持新增一个扫码登录的微信 bot。OpenClaw 收到微信
+私聊后，将消息转发到 `/openclaw/callback?token=...`，本服务沿用现有订阅、
+推送、答题逻辑处理，再通过 OpenClaw CLI 主动回复微信用户。
+后台可一键启动 OpenClaw 登录会话并显示扫码二维码；新微信用户默认进入
+“待审核”，管理员通过后才会开始订阅和推送。
+
+接入步骤见：[docs/OPENCLAW_WECHAT.md](docs/OPENCLAW_WECHAT.md)。
+
 ## 测试
 
 ```bash

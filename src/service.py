@@ -12,6 +12,14 @@ AUTO_SUBSCRIBE_WELCOME = """你好，我是你的 AI 英语知识助手 👋
 你已成功订阅「AI 行业常用英语」，我会每天发送一个知识点和一道小测试。
 回复「来一个」立即体验；回复「暂停」可随时暂停。"""
 
+OPENCLAW_REVIEW_REPLY = """已收到你的学习助手申请。
+
+管理员审核通过后，我会开始发送 AI 行业英语知识点。"""
+
+OPENCLAW_APPROVED_REPLY = """审核已通过，欢迎加入「AI 行业常用英语」。
+
+回复「来一个」立即体验；回复「暂停」可随时暂停。"""
+
 
 class EnglishAgentService:
     def __init__(self, db, channel, agent):
@@ -67,6 +75,29 @@ class EnglishAgentService:
     def users(self):
         return self.db.all("SELECT * FROM users ORDER BY id DESC")
 
+    def approve_user(self, user_id):
+        user = self.get_user(user_id)
+        if not user:
+            raise ValueError("用户不存在")
+        self.db.execute(
+            "UPDATE users SET subscription_status = 'active' WHERE id = ?", (user_id,)
+        )
+        user = self.get_user(user_id)
+        self.channel.send_text(user, OPENCLAW_APPROVED_REPLY)
+        return user
+
+    def reject_user(self, user_id):
+        user = self.get_user(user_id)
+        if not user:
+            raise ValueError("用户不存在")
+        self.db.execute(
+            "UPDATE users SET subscription_status = 'unsubscribed' WHERE id = ?",
+            (user_id,),
+        )
+        user = self.get_user(user_id)
+        self.channel.send_text(user, "你的申请暂未通过。如需重新申请，请联系管理员。")
+        return user
+
     def messages(self, user_id):
         return self.db.all(
             "SELECT * FROM messages WHERE user_id = ? ORDER BY id ASC", (user_id,)
@@ -81,6 +112,10 @@ class EnglishAgentService:
             "INSERT INTO messages (user_id, direction, text, kind) VALUES (?, 'in', ?, 'text')",
             (user_id, text),
         )
+
+        if user["channel_user_id"].startswith("openclaw:") and user["subscription_status"] == "pending":
+            self.channel.send_text(user, OPENCLAW_REVIEW_REPLY)
+            return OPENCLAW_REVIEW_REPLY
 
         commands = {
             "开始": ("active", "订阅成功！从今天起，我会每天给你发送一个 AI 英语知识点。"),

@@ -11,7 +11,7 @@
   <main>
     <header>
       <div><span class="eyebrow">WECOM LEARNING AGENT</span><h1>AI 英语订阅助手</h1></div>
-      <div class="header-actions"><button id="openSettings">运营配置台</button><button id="openJuhe">协议通道</button><button id="openWecom">官方应用</button><button id="runPush" class="primary">向订阅用户推送今日知识</button></div>
+      <div class="header-actions"><button id="openSettings">运营配置台</button><button id="openOpenclaw">微信 OpenClaw</button><button id="openJuhe">协议通道</button><button id="openWecom">官方应用</button><button id="runPush" class="primary">向订阅用户推送今日知识</button></div>
     </header>
 
     <section id="stats" class="stats"></section>
@@ -25,7 +25,7 @@
       <section class="panel chat-panel">
         <div id="empty" class="empty">选择或添加一个用户，开始模拟企微对话。</div>
         <div id="chat" hidden>
-          <div class="chat-head"><div><h2 id="chatName"></h2><span id="chatStatus"></span></div><button id="pushOne">立即推送</button></div>
+          <div class="chat-head"><div><h2 id="chatName"></h2><span id="chatStatus"></span></div><div class="chat-actions"><button id="approveUser" hidden>通过审核</button><button id="rejectUser" hidden>拒绝</button><button id="pushOne">立即推送</button></div></div>
           <div id="messages" class="messages"></div>
           <form id="messageForm" class="composer">
             <input id="messageInput" placeholder="试试：开始、来一个、A、难一点，或提出问题" autocomplete="off">
@@ -67,6 +67,23 @@
       <div id="juheStatus" class="integration-status"></div>
       <div class="callback"><span>将此地址填写到供应商的“实例通知地址”</span><code id="juheCallbackUrl"></code></div>
       <div class="dialog-actions"><button type="button" id="testJuhe">验证凭证</button><button type="button" id="registerJuheCallback">注册回调</button><button type="button" id="cancelJuhe">取消</button><button class="primary" type="submit">保存配置</button></div>
+    </form>
+  </dialog>
+  <dialog id="openclawDialog">
+    <form id="openclawForm">
+      <div class="dialog-head"><div><span class="eyebrow">WECHAT BOT</span><h2>微信 OpenClaw 入口</h2></div><button type="button" id="closeOpenclaw" aria-label="关闭">×</button></div>
+      <div class="notice safe">用于微信扫码登录一个 OpenClaw bot，再把微信私聊转入当前英语订阅 Agent。</div>
+      <div class="form-grid">
+        <label>启用入口<select name="enabled"><option value="false">暂不启用</option><option value="true">启用</option></select></label>
+        <label>Bot 名称<input name="bot_name" autocomplete="off" placeholder="AI 英语订阅助手"></label>
+        <label>OpenClaw CLI 路径<input name="cli_path" autocomplete="off"></label>
+        <label>渠道 ID<input name="channel" autocomplete="off" placeholder="openclaw-weixin"></label>
+        <label>微信账号 ID<input name="account_id" autocomplete="off" placeholder="扫码登录后生成的 accountId"></label>
+      </div>
+      <div id="openclawStatus" class="integration-status"></div>
+      <div class="callback"><span>OpenClaw agent 转发到此回调地址</span><code id="openclawCallbackUrl"></code></div>
+      <pre id="openclawOutput" class="command-output" hidden></pre>
+      <div class="dialog-actions"><button type="button" id="startOpenclawLogin">生成登录二维码</button><button type="button" id="stopOpenclawLogin">停止</button><button type="button" id="checkOpenclaw">检查状态</button><button type="button" id="cancelOpenclaw">取消</button><button class="primary" type="submit">保存配置</button></div>
     </form>
   </dialog>
   <div id="toast"></div>

@@ -19,6 +19,7 @@ from agent import AgentService
 from channel import WeComChannel
 from content import DEMO_CONTENT
 from db import Database
+from openclaw import DEFAULT_CLI_PATH, OpenClawClient, OpenClawError, OpenClawLoginSession
 from service import EnglishAgentService
 from wecom import WeComCrypto, WeComError, parse_encrypted_xml, parse_message_xml
 from juhe import DEFAULT_API_URL, JuheClient, JuheError, juhe_event_key, parse_juhe_callback
@@ -44,6 +45,8 @@ db_path = os.getenv("DB_PATH", str(ROOT / "data" / "english_agent.db"))
 db = Database(db_path)
 db.initialize(DEMO_CONTENT)
 service = EnglishAgentService(db, WeComChannel(db), AgentService())
+openclaw_login_session = None
+openclaw_login_lock = threading.Lock()
 
 WECOM_FIELDS = {
     "corp_id": ("WECOM_CORP_ID", False),
@@ -60,6 +63,14 @@ JUHE_FIELDS = {
     "guid": ("JUHE_GUID", False),
     "app_secret": ("JUHE_APP_SECRET", True),
     "private_cdn_url": ("JUHE_PRIVATE_CDN_URL", True),
+}
+
+OPENCLAW_FIELDS = {
+    "enabled": ("OPENCLAW_ENABLED", False),
+    "cli_path": ("OPENCLAW_CLI_PATH", False),
+    "channel": ("OPENCLAW_CHANNEL", False),
+    "account_id": ("OPENCLAW_ACCOUNT_ID", False),
+    "bot_name": ("OPENCLAW_BOT_NAME", False),
 }
 
 VOICE_FIELDS = {
@@ -236,6 +247,84 @@ def save_juhe_config(values, allow_sensitive=False):
     return juhe_config()
 
 
+def openclaw_config(public_origin=""):
+    defaults = {
+        "enabled": "false",
+        "cli_path": DEFAULT_CLI_PATH,
+        "channel": "openclaw-weixin",
+        "account_id": "",
+        "bot_name": "AI 英语订阅助手",
+    }
+    result = {}
+    for field, (env_key, _sensitive) in OPENCLAW_FIELDS.items():
+        value = os.getenv(env_key, defaults.get(field, ""))
+        if field == "enabled":
+            result[field] = value.lower() in ("1", "true", "yes", "on")
+        else:
+            result[field] = value
+    token = os.getenv("OPENCLAW_CALLBACK_TOKEN", "")
+    result["callback_path"] = f"/openclaw/callback?token={token}" if token else "/openclaw/callback"
+    result["callback_url"] = (public_origin.rstrip("/") + result["callback_path"]) if public_origin else result["callback_path"]
+    result["callback_ready"] = bool(token)
+    result["send_ready"] = bool(result["enabled"] and result["cli_path"] and result["account_id"])
+    return result
+
+
+def save_openclaw_config(values):
+    updates = {}
+    for field, (env_key, _sensitive) in OPENCLAW_FIELDS.items():
+        if field not in values:
+            continue
+        value = values[field]
+        if field == "enabled":
+            enabled = value if isinstance(value, bool) else str(value).lower() in ("1", "true", "yes", "on")
+            value = "true" if enabled else "false"
+        else:
+            value = " ".join(str(value).splitlines()).strip()
+        updates[env_key] = value
+    if not os.getenv("OPENCLAW_CALLBACK_TOKEN", ""):
+        updates["OPENCLAW_CALLBACK_TOKEN"] = secrets.token_urlsafe(32)
+    if updates:
+        save_env_updates(updates)
+    service.channel.openclaw_client = OpenClawClient()
+    return openclaw_config()
+
+
+def openclaw_login_start(account_id=""):
+    global openclaw_login_session
+    client = OpenClawClient()
+    with openclaw_login_lock:
+        if openclaw_login_session and openclaw_login_session.running:
+            pass
+        else:
+            command = client.login_command(account_id=account_id)
+            openclaw_login_session = OpenClawLoginSession(command)
+    return openclaw_login_status()
+
+
+def openclaw_login_status():
+    with openclaw_login_lock:
+        session = openclaw_login_session
+        if not session:
+            return {"running": False, "output": "", "returncode": None}
+        output = session.read_available()
+        return {
+            "running": session.running,
+            "output": output,
+            "returncode": session.returncode,
+            "started_at": session.started_at,
+        }
+
+
+def openclaw_login_stop():
+    global openclaw_login_session
+    with openclaw_login_lock:
+        if openclaw_login_session:
+            openclaw_login_session.stop()
+        openclaw_login_session = None
+    return {"running": False, "output": "", "returncode": None}
+
+
 def callback_crypto():
     try:
         return WeComCrypto(
@@ -278,6 +367,15 @@ def process_juhe_contact_change(event_key):
     except Exception as exc:
         db.finish_callback_event(event_key, str(exc)[:500])
         print(f"Juhe contact callback processing error: {type(exc).__name__}")
+
+
+def process_openclaw_message(event_key, sender, text, name=None):
+    try:
+        service.receive_from_channel(f"openclaw:{sender}", text, name=name)
+        db.finish_callback_event(event_key)
+    except Exception as exc:
+        db.finish_callback_event(event_key, str(exc)[:500])
+        print(f"OpenClaw callback processing error: {type(exc).__name__}")
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -429,6 +527,30 @@ class Handler(BaseHTTPRequestHandler):
             ).start()
         return {"code": 0, "message": "ok"}
 
+    def _openclaw_receive(self, query):
+        expected_token = os.getenv("OPENCLAW_CALLBACK_TOKEN", "")
+        supplied_token = query.get("token", [""])[0]
+        if not expected_token or not hmac.compare_digest(supplied_token, expected_token):
+            raise OpenClawError("OpenClaw 回调认证失败")
+        payload = self._body()
+        sender = str(payload.get("sender") or payload.get("from") or payload.get("target") or "").strip()
+        text = str(payload.get("text") or payload.get("message") or "").strip()
+        name = str(payload.get("name") or payload.get("display_name") or "微信用户").strip()
+        message_id = str(payload.get("message_id") or payload.get("id") or "").strip()
+        if not sender or not text:
+            raise OpenClawError("OpenClaw 回调缺少 sender 或 text")
+        event_key = "openclaw:{}:{}".format(
+            sender,
+            message_id or hashlib.sha256(f"{sender}:{text}:{time.time_ns()}".encode("utf-8")).hexdigest(),
+        )
+        if db.claim_callback_event(event_key):
+            threading.Thread(
+                target=process_openclaw_message,
+                args=(event_key, sender, text, name),
+                daemon=True,
+            ).start()
+        return {"code": 0, "message": "ok"}
+
     def do_GET(self):
         parsed = urlparse(self.path)
         path = parsed.path
@@ -451,6 +573,12 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(wecom_config())
             if path == "/api/config/juhe":
                 return self._json(juhe_config())
+            if path == "/api/config/openclaw":
+                return self._json(openclaw_config(self._public_origin()))
+            if path == "/api/config/openclaw/status":
+                return self._json({"ok": True, "output": OpenClawClient().status()})
+            if path == "/api/config/openclaw/login":
+                return self._json(openclaw_login_status())
             if path == "/api/config/voice":
                 return self._json(voice_config())
             parts = path.strip("/").split("/")
@@ -460,6 +588,8 @@ class Handler(BaseHTTPRequestHandler):
         except WeComError as exc:
             return self._text(str(exc), 403)
         except JuheError as exc:
+            return self._json({"error": str(exc)}, 403)
+        except OpenClawError as exc:
             return self._json({"error": str(exc)}, 403)
         except Exception as exc:
             return self._json({"error": str(exc)}, 500)
@@ -472,6 +602,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._text(self._wecom_receive(parse_qs(parsed.query)))
             if path == "/juhe/callback":
                 return self._json(self._juhe_receive(parse_qs(parsed.query)))
+            if path == "/openclaw/callback":
+                return self._json(self._openclaw_receive(parse_qs(parsed.query)))
             if not self._require_auth():
                 return
             body = self._body()
@@ -535,6 +667,14 @@ class Handler(BaseHTTPRequestHandler):
                 if sensitive_present and not secure:
                     return self._json({"error": "当前连接不是 HTTPS，已拒绝保存敏感配置"}, 403)
                 return self._json(save_juhe_config(body, allow_sensitive=secure))
+            if path == "/api/config/openclaw":
+                return self._json(save_openclaw_config(body))
+            if path == "/api/config/openclaw/status":
+                return self._json({"ok": True, "output": OpenClawClient().status()})
+            if path == "/api/config/openclaw/login/start":
+                return self._json(openclaw_login_start(body.get("account_id", "")))
+            if path == "/api/config/openclaw/login/stop":
+                return self._json(openclaw_login_stop())
             if path == "/api/config/voice":
                 forwarded_proto = self.headers.get("X-Forwarded-Proto", "").lower()
                 trust_proxy = os.getenv("TRUST_PROXY_HEADERS", "").lower() in ("1", "true", "yes")
@@ -577,10 +717,16 @@ class Handler(BaseHTTPRequestHandler):
                         "Hello. Welcome to your daily English practice.",
                     )
                     return self._json({"ok": True})
+                if parts[3] == "approve":
+                    return self._json(service.approve_user(user_id))
+                if parts[3] == "reject":
+                    return self._json(service.reject_user(user_id))
             return self._json({"error": "Not found"}, 404)
         except WeComError as exc:
             return self._text(str(exc), 403)
         except JuheError as exc:
+            return self._json({"error": str(exc)}, 403)
+        except OpenClawError as exc:
             return self._json({"error": str(exc)}, 403)
         except ValueError as exc:
             return self._json({"error": str(exc)}, 400)
