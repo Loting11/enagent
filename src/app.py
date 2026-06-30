@@ -49,6 +49,7 @@ db.initialize(DEMO_CONTENT)
 service = EnglishAgentService(db, WeComChannel(db), AgentService())
 openclaw_login_session = None
 openclaw_login_lock = threading.Lock()
+openclaw_last_login_output = ""
 
 WECOM_FIELDS = {
     "corp_id": ("WECOM_CORP_ID", False),
@@ -295,38 +296,43 @@ def save_openclaw_config(values):
 
 
 def openclaw_login_start(account_id=""):
-    global openclaw_login_session
+    global openclaw_login_session, openclaw_last_login_output
     client = OpenClawClient()
     with openclaw_login_lock:
         if openclaw_login_session and openclaw_login_session.running:
             pass
         else:
+            openclaw_last_login_output = ""
             command = client.login_command(account_id=account_id)
             openclaw_login_session = OpenClawLoginSession(command)
     return openclaw_login_status()
 
 
 def openclaw_login_status():
+    global openclaw_last_login_output
     with openclaw_login_lock:
         session = openclaw_login_session
         if not session:
-            return {"running": False, "output": "", "returncode": None}
+            return {"running": False, "output": openclaw_last_login_output, "returncode": None}
         output = session.read_available()
+        if output:
+            openclaw_last_login_output = output
         return {
             "running": session.running,
-            "output": output,
+            "output": output or openclaw_last_login_output,
             "returncode": session.returncode,
             "started_at": session.started_at,
         }
 
 
 def openclaw_login_stop():
-    global openclaw_login_session
+    global openclaw_login_session, openclaw_last_login_output
     with openclaw_login_lock:
         if openclaw_login_session:
+            openclaw_last_login_output = openclaw_login_session.read_available() or openclaw_last_login_output
             openclaw_login_session.stop()
         openclaw_login_session = None
-    return {"running": False, "output": "", "returncode": None}
+    return {"running": False, "output": openclaw_last_login_output, "returncode": None}
 
 
 def callback_crypto():
