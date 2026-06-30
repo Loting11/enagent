@@ -17,7 +17,7 @@ from urllib.parse import parse_qs, quote, urlparse
 
 from agent import AgentService
 from channel import WeComChannel
-from content import DEMO_CONTENT
+from content import DEMO_CONTENT, INDUSTRY_BRIEFINGS
 from db import Database
 from openclaw import DEFAULT_CLI_PATH, OpenClawClient, OpenClawError, OpenClawLoginSession, cli_available, resolve_cli_path
 from service import EnglishAgentService
@@ -45,7 +45,7 @@ def load_env():
 load_env()
 db_path = os.getenv("DB_PATH", str(ROOT / "data" / "english_agent.db"))
 db = Database(db_path)
-db.initialize(DEMO_CONTENT)
+db.initialize(DEMO_CONTENT + INDUSTRY_BRIEFINGS)
 service = EnglishAgentService(db, WeComChannel(db), AgentService())
 openclaw_login_session = None
 openclaw_login_lock = threading.Lock()
@@ -646,8 +646,10 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(service.dashboard())
             if path == "/api/users":
                 return self._json(service.users())
+            if path == "/api/products":
+                return self._json(service.products())
             if path == "/api/content":
-                return self._json(db.all("SELECT * FROM content_items ORDER BY difficulty, id"))
+                return self._json(service.content_items())
             if path == "/api/config/wecom":
                 return self._json(wecom_config())
             if path == "/api/config/juhe":
@@ -663,6 +665,8 @@ class Handler(BaseHTTPRequestHandler):
             parts = path.strip("/").split("/")
             if len(parts) == 4 and parts[:2] == ["api", "users"] and parts[3] == "messages":
                 return self._json(service.messages(int(parts[2])))
+            if len(parts) == 4 and parts[:2] == ["api", "users"] and parts[3] == "subscriptions":
+                return self._json(service.subscriptions(int(parts[2])))
             return self._static(path)
         except WeComError as exc:
             return self._text(str(exc), 403)
@@ -700,12 +704,12 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/api/users":
                 user = service.create_user(body.get("name", ""), body.get("channel_user_id", ""))
                 return self._json(user, 201)
+            if path == "/api/content":
+                return self._json(service.save_content_item(body), 201)
             if path == "/api/push/run":
-                users = service.users()
                 sent = 0
-                for user in users:
-                    if user["subscription_status"] == "active":
-                        service.push_one(user["id"], force=True)
+                for subscription in db.all("SELECT * FROM user_subscriptions WHERE status IN ('trial', 'paid', 'active')"):
+                    if service.push_one(subscription["user_id"], force=True, product_key=subscription["product_key"]):
                         sent += 1
                 return self._json({"sent": sent})
             if path == "/api/config/wecom/test":
@@ -787,14 +791,29 @@ class Handler(BaseHTTPRequestHandler):
                     return self._json({"error": "请先配置：" + "、".join(missing)}, 400)
                 return self._json({"ok": True, "message": "配置完整；接入密钥后可进行真实试听。"})
             parts = path.strip("/").split("/")
+            if len(parts) == 3 and parts[:2] == ["api", "products"]:
+                return self._json(service.update_product(parts[2], body))
+            if len(parts) == 3 and parts[:2] == ["api", "content"]:
+                return self._json(service.save_content_item(body, int(parts[2])))
             if len(parts) == 4 and parts[:2] == ["api", "users"]:
                 user_id = int(parts[2])
                 if parts[3] == "messages":
                     reply = service.receive(user_id, body.get("text", ""))
                     return self._json({"reply": reply})
                 if parts[3] == "push":
-                    message = service.push_one(user_id, force=True)
+                    message = service.push_one(
+                        user_id, force=True, product_key=body.get("product_key", "ai_english")
+                    )
                     return self._json({"message": message})
+                if parts[3] == "subscriptions":
+                    return self._json(
+                        service.open_trial_subscription(
+                            user_id,
+                            body.get("product_key", "ai_english"),
+                            int(body.get("days", 7)),
+                        ),
+                        201,
+                    )
                 if parts[3] == "voice-test":
                     user = service.get_user(user_id)
                     if not user:
@@ -811,6 +830,8 @@ class Handler(BaseHTTPRequestHandler):
                     return self._json(service.approve_user(user_id))
                 if parts[3] == "reject":
                     return self._json(service.reject_user(user_id))
+            if len(parts) == 5 and parts[:2] == ["api", "users"] and parts[3] == "subscriptions":
+                return self._json(service.update_subscription(int(parts[2]), parts[4], body))
             return self._json({"error": "Not found"}, 404)
         except WeComError as exc:
             return self._text(str(exc), 403)

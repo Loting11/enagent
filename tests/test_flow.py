@@ -4,7 +4,7 @@ import unittest
 
 from src.agent import AgentService
 from src.channel import MockWeComChannel
-from src.content import DEMO_CONTENT
+from src.content import DEMO_CONTENT, INDUSTRY_BRIEFINGS
 from src.db import Database
 from src.service import EnglishAgentService, format_learning_push
 
@@ -13,7 +13,7 @@ class AgentFlowTest(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.db = Database(os.path.join(self.temp.name, "test.db"))
-        self.db.initialize(DEMO_CONTENT)
+        self.db.initialize(DEMO_CONTENT + INDUSTRY_BRIEFINGS)
         self.service = EnglishAgentService(self.db, MockWeComChannel(self.db), AgentService())
 
     def tearDown(self):
@@ -68,6 +68,30 @@ class AgentFlowTest(unittest.TestCase):
         self.assertEqual(approved["subscription_status"], "active")
         self.service.receive(approved["id"], "来一个")
         self.assertIsNotNone(self.service.get_user(approved["id"])["current_content_id"])
+
+    def test_user_can_subscribe_to_multiple_products(self):
+        user = self.service.create_user("小林", "wx_multi")
+        self.service.approve_user(user["id"])
+        english = self.service.open_trial_subscription(user["id"], "ai_english")
+        briefing = self.service.open_trial_subscription(user["id"], "ai_briefing")
+
+        self.assertEqual(english["status"], "trial")
+        self.assertEqual(briefing["status"], "trial")
+        self.assertEqual(len(self.service.subscriptions(user["id"])), 2)
+
+        english_message = self.service.receive(user["id"], "来一个英语")
+        briefing_message = self.service.receive(user["id"], "今日早报")
+
+        self.assertIn("今日 AI 英语", english_message)
+        self.assertIn("AI 行业早报", briefing_message)
+
+    def test_unopened_product_does_not_push(self):
+        user = self.service.create_user("小周", "wx_unopened")
+        self.service.approve_user(user["id"])
+
+        reply = self.service.receive(user["id"], "今日早报")
+
+        self.assertIn("还没有开通", reply)
 
 
 if __name__ == "__main__":

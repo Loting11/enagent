@@ -122,3 +122,67 @@ _AI_TERMS = [
 
 
 DEMO_CONTENT = [_content_item(*item) for item in _AI_TERMS]
+
+
+INDUSTRY_BRIEFINGS = [
+    {
+        "term": "OpenAI：AI Agent 正在改变工作方式",
+        "meaning": "OpenAI 发布研究，强调更强的 Agent 工具会让用户处理更长、更复杂、跨职能的任务。",
+        "explanation": "这类趋势说明企业对 Agent 产品的需求会从单点问答转向持续执行、协作和工作流自动化。",
+        "example_en": "AI agents are moving from simple answers toward longer, cross-functional work.",
+        "example_cn": "AI Agent 正在从简单回答走向更长周期、跨职能的工作。",
+        "question": "这条早报最适合提示运营关注什么？",
+        "options": [
+            "A. Agent 产品会更强调持续服务和工作流",
+            "B. AI 只能用于聊天娱乐",
+            "C. 企业不再需要自动化工具",
+        ],
+        "answer": "A",
+        "difficulty": 1,
+        "topic": "AI 行业早报",
+        "content_type": "briefing",
+        "product_key": "ai_briefing",
+        "review_status": "approved",
+        "source_url": "https://openai.com/index/how-agents-are-transforming-work/",
+    },
+    {
+        "term": "Anthropic：Claude Tag 强化团队协作场景",
+        "meaning": "Anthropic 新闻页显示 Claude Tag 属于近期产品动态，指向团队协作和内容组织类 AI 用法。",
+        "explanation": "对付费 Agent 产品来说，标签、上下文和团队协同会成为提高留存的重要能力。",
+        "example_en": "Better tagging and context management can make AI workflows easier to operate.",
+        "example_cn": "更好的标签和上下文管理可以让 AI 工作流更容易运营。",
+        "question": "这条资讯对我们的后台设计有什么启发？",
+        "options": [
+            "A. 用户、内容和订阅都需要标签体系",
+            "B. 后台不需要管理内容",
+            "C. 所有用户只能接收同一种内容",
+        ],
+        "answer": "A",
+        "difficulty": 1,
+        "topic": "AI 行业早报",
+        "content_type": "briefing",
+        "product_key": "ai_briefing",
+        "review_status": "approved",
+        "source_url": "https://www.anthropic.com/news",
+    },
+    {
+        "term": "OpenAI：企业 AI 进入下一阶段",
+        "meaning": "OpenAI 企业 AI 动态强调 Agent 在企业范围内落地，推动个人和团队的生产力提升。",
+        "explanation": "这说明 B 端和私域用户都可能为持续型 Agent 服务付费，而不是只购买一次性内容。",
+        "example_en": "Enterprise AI adoption is shifting toward agents that support teams and workflows.",
+        "example_cn": "企业 AI 采用正在转向支持团队和工作流的 Agent。",
+        "question": "这条早报最适合作为哪类产品的内容？",
+        "options": [
+            "A. AI 行业早报",
+            "B. 餐厅点餐系统",
+            "C. 天气播报",
+        ],
+        "answer": "A",
+        "difficulty": 1,
+        "topic": "AI 行业早报",
+        "content_type": "briefing",
+        "product_key": "ai_briefing",
+        "review_status": "approved",
+        "source_url": "https://openai.com/index/next-phase-of-enterprise-ai/",
+    },
+]

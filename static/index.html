@@ -10,32 +10,56 @@
 <body>
   <main>
     <header>
-      <div><span class="eyebrow">WECOM LEARNING AGENT</span><h1>AI 英语订阅助手</h1></div>
-      <div class="header-actions"><button id="openSettings">运营配置台</button><button id="openOpenclaw">微信 OpenClaw</button><button id="openJuhe">协议通道</button><button id="openWecom">官方应用</button><button id="logout">退出</button><button id="runPush" class="primary">向订阅用户推送今日知识</button></div>
+      <div><span class="eyebrow">OPENCLAW AGENT OPS</span><h1>Agent 运营后台</h1></div>
+      <div class="header-actions"><button id="openOpenclaw">微信 OpenClaw</button><button id="openJuhe">协议通道</button><button id="openWecom">官方应用</button><button id="logout">退出</button><button id="runPush" class="primary">执行推送</button></div>
     </header>
 
     <section id="stats" class="stats"></section>
 
-    <section class="workspace">
-      <aside class="panel users-panel">
-        <div class="panel-title"><h2>测试用户</h2><button id="addUser">＋ 添加</button></div>
-        <div id="users" class="users"></div>
-      </aside>
-
-      <section class="panel chat-panel">
-        <div id="empty" class="empty">选择或添加一个用户，开始模拟企微对话。</div>
-        <div id="chat" hidden>
-          <div class="chat-head"><div><h2 id="chatName"></h2><span id="chatStatus"></span></div><div class="chat-actions"><button id="approveUser" hidden>通过审核</button><button id="rejectUser" hidden>拒绝</button><button id="pushOne">立即推送</button></div></div>
-          <div id="messages" class="messages"></div>
-          <form id="messageForm" class="composer">
-            <input id="messageInput" placeholder="试试：开始、来一个、A、难一点，或提出问题" autocomplete="off">
-            <button class="primary">发送</button>
-          </form>
-          <div class="quick"><span>快捷：</span><button data-text="开始">开始</button><button data-text="来一个">来一个</button><button data-text="A">A</button><button data-text="B">B</button><button data-text="暂停">暂停</button></div>
-        </div>
+    <section class="ops-layout">
+      <nav class="ops-nav">
+        <button class="active" data-view="dashboard">工作台</button>
+        <button data-view="users">用户管理</button>
+        <button data-view="products">Agent 产品</button>
+        <button data-view="content">知识库</button>
+        <button data-view="push">推送</button>
+        <button data-view="messages">互动</button>
+        <button data-view="billing">收费权益</button>
+      </nav>
+      <section class="ops-main">
+        <section id="view-dashboard" class="view"></section>
+        <section id="view-users" class="view" hidden></section>
+        <section id="view-products" class="view" hidden></section>
+        <section id="view-content" class="view" hidden></section>
+        <section id="view-push" class="view" hidden></section>
+        <section id="view-messages" class="view" hidden></section>
+        <section id="view-billing" class="view" hidden></section>
       </section>
     </section>
   </main>
+  <dialog id="contentDialog">
+    <form id="contentForm">
+      <div class="dialog-head"><div><span class="eyebrow">KNOWLEDGE</span><h2>知识库内容</h2></div><button type="button" id="closeContent" aria-label="关闭">×</button></div>
+      <div class="form-grid">
+        <label>所属产品<select name="product_key"></select></label>
+        <label>内容类型<select name="content_type"><option value="knowledge_card">知识点卡片</option><option value="briefing">资讯/早报</option><option value="article">图文/长文</option><option value="link">外部链接</option></select></label>
+        <label>标题<input name="term" autocomplete="off"></label>
+        <label>摘要/含义<input name="meaning" autocomplete="off"></label>
+        <label class="wide">正文/解读<textarea name="explanation" rows="4"></textarea></label>
+        <label>英文例句/补充<input name="example_en" autocomplete="off"></label>
+        <label>中文例句/补充<input name="example_cn" autocomplete="off"></label>
+        <label class="wide">互动问题<input name="question" autocomplete="off"></label>
+        <label class="wide">选项<textarea name="options" rows="3" placeholder="A. ...&#10;B. ...&#10;C. ..."></textarea></label>
+        <label>答案<select name="answer"><option>A</option><option>B</option><option>C</option></select></label>
+        <label>难度<select name="difficulty"><option>1</option><option>2</option><option>3</option></select></label>
+        <label>主题<input name="topic" autocomplete="off"></label>
+        <label>审核状态<select name="review_status"><option value="pending">待审核</option><option value="approved">已通过</option><option value="rejected">已拒绝</option></select></label>
+        <label>启用<select name="enabled"><option value="1">启用</option><option value="0">停用</option></select></label>
+        <label class="wide">来源链接<input name="source_url" autocomplete="off"></label>
+      </div>
+      <div class="dialog-actions"><button type="button" id="cancelContent">取消</button><button class="primary" type="submit">保存</button></div>
+    </form>
+  </dialog>
   <dialog id="wecomDialog">
     <form id="wecomForm">
       <div class="dialog-head"><div><span class="eyebrow">INTEGRATION</span><h2>企业微信配置</h2></div><button type="button" id="closeWecom" aria-label="关闭">×</button></div>

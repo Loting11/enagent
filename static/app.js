@@ -1,6 +1,6 @@
 let selectedUser = null;
-
-document.querySelector('#openSettings').onclick=()=>location.href='/admin-prototype.html';
+let state = {stats:{}, users:[], products:[], content:[], subscriptions:[], messages:[]};
+let editingContentId = null;
 
 async function api(path, options={}) {
   const response = await fetch(path, {
@@ -22,56 +22,159 @@ function toast(text) {
 }
 
 async function refresh() {
-  const [stats, users] = await Promise.all([api('/api/dashboard'), api('/api/users')]);
-  const labels = [['users','用户'],['active','订阅中'],['messages','消息'],['pushes','已推送']];
-  document.querySelector('#stats').innerHTML = labels.map(([k,l])=>`<div class="stat"><strong>${stats[k]}</strong><span>${l}</span></div>`).join('') + `<div class="stat"><strong>${stats.model_configured?'已连接':'Demo'}</strong><span>模型状态</span></div>`;
-  document.querySelector('#users').innerHTML = users.map(u=>`<button class="user ${selectedUser?.id===u.id?'active':''}" data-id="${u.id}"><div><b>${u.name}</b><small>${u.channel_user_id}</small></div><span class="badge ${u.subscription_status}">${statusLabel(u.subscription_status)}</span></button>`).join('') || '<p style="padding:16px;color:#69736c">还没有测试用户</p>';
-  document.querySelectorAll('.user').forEach(el=>el.onclick=()=>selectUser(Number(el.dataset.id)));
-  if (selectedUser) {
-    selectedUser = users.find(u=>u.id===selectedUser.id) || null;
-    if (selectedUser) await renderChat();
-  }
+  const [stats, users, products, content] = await Promise.all([
+    api('/api/dashboard'), api('/api/users'), api('/api/products'), api('/api/content')
+  ]);
+  state = {...state, stats, users, products, content};
+  if (selectedUser) selectedUser = users.find(u=>u.id===selectedUser.id) || selectedUser;
+  renderStats();
+  renderActiveView();
 }
 
-function statusLabel(status){return {pending:'待审核',active:'订阅中',paused:'已暂停',unsubscribed:'已退订'}[status]||status}
-
-async function selectUser(id){
-  const users=await api('/api/users'); selectedUser=users.find(u=>u.id===id); await refresh();
+function renderStats(){
+  const labels = [['users','用户'],['products','产品'],['subscriptions','有效订阅'],['pending_content','待审核'],['messages','互动'],['pushes','已推送']];
+  document.querySelector('#stats').innerHTML = labels.map(([k,l])=>`<div class="stat"><strong>${state.stats[k]??0}</strong><span>${l}</span></div>`).join('');
 }
 
-async function renderChat(){
-  document.querySelector('#empty').hidden=true; document.querySelector('#chat').hidden=false;
-  document.querySelector('#chatName').textContent=selectedUser.name;
-  document.querySelector('#chatStatus').textContent=`${statusLabel(selectedUser.subscription_status)} · 难度 ${selectedUser.difficulty}`;
-  const needsReview=selectedUser.channel_user_id.startsWith('openclaw:')&&selectedUser.subscription_status==='pending';
-  document.querySelector('#approveUser').hidden=!needsReview;
-  document.querySelector('#rejectUser').hidden=!needsReview;
-  const messages=await api(`/api/users/${selectedUser.id}/messages`);
-  const box=document.querySelector('#messages');
-  box.innerHTML=messages.map(m=>`<div class="message ${m.direction}">${escapeHtml(m.text)}<time>${m.direction==='in'?'用户':'Agent'} · ${m.created_at}</time></div>`).join('');
-  box.scrollTop=box.scrollHeight;
+function renderActiveView(){
+  const active = document.querySelector('.ops-nav button.active')?.dataset.view || 'dashboard';
+  renderView(active);
 }
 
-function escapeHtml(text){const d=document.createElement('div');d.textContent=text;return d.innerHTML}
+function setView(name){
+  document.querySelectorAll('.ops-nav button').forEach(b=>b.classList.toggle('active', b.dataset.view===name));
+  document.querySelectorAll('.view').forEach(v=>v.hidden=v.id!==`view-${name}`);
+  renderView(name);
+}
 
-document.querySelector('#addUser').onclick=async()=>{
-  const n=Date.now().toString().slice(-5);
-  await api('/api/users',{method:'POST',body:JSON.stringify({name:`测试用户 ${n}`,channel_user_id:`wx_demo_${n}`})});
-  toast('已添加测试用户并发送欢迎语'); await refresh();
-};
+function renderView(name){
+  if(name==='dashboard')return renderDashboard();
+  if(name==='users')return renderUsers();
+  if(name==='products')return renderProducts();
+  if(name==='content')return renderContent();
+  if(name==='push')return renderPush();
+  if(name==='messages')return renderMessages();
+  if(name==='billing')return renderBilling();
+}
 
-document.querySelector('#messageForm').onsubmit=async e=>{
-  e.preventDefault(); if(!selectedUser)return;
-  const input=document.querySelector('#messageInput'); const text=input.value.trim(); if(!text)return;
-  input.value=''; await api(`/api/users/${selectedUser.id}/messages`,{method:'POST',body:JSON.stringify({text})}); await refresh();
-};
+function renderDashboard(){
+  document.querySelector('#view-dashboard').innerHTML=`
+    <section class="grid-2">
+      <div class="panel"><div class="panel-title"><h2>今日运营</h2></div><div class="panel-body stack">
+        <p>当前接入 ${state.users.length} 位用户，${state.stats.subscriptions||0} 条有效订阅。</p>
+        <p class="muted">一个微信 OpenClaw bot 可以承载多个 Agent 产品，后台按订阅关系分发内容。</p>
+        <div class="row-actions"><button class="primary" id="dashboardPush">执行一次推送</button><button id="dashboardContent">新增知识内容</button></div>
+      </div></div>
+      <div class="panel"><div class="panel-title"><h2>待处理</h2></div><div class="panel-body stack">
+        <p><b>${state.users.filter(u=>u.subscription_status==='pending').length}</b> 位用户待审核</p>
+        <p><b>${state.content.filter(c=>c.review_status==='pending').length}</b> 条内容待审核</p>
+        <p><b>${state.users.filter(u=>u.subscription_status==='active').length}</b> 位用户可服务</p>
+      </div></div>
+    </section>`;
+  document.querySelector('#dashboardPush').onclick=runPush;
+  document.querySelector('#dashboardContent').onclick=()=>openContentEditor();
+}
 
-document.querySelectorAll('.quick button').forEach(b=>b.onclick=()=>{document.querySelector('#messageInput').value=b.dataset.text;document.querySelector('#messageForm').requestSubmit()});
-document.querySelector('#pushOne').onclick=async()=>{await api(`/api/users/${selectedUser.id}/push`,{method:'POST',body:'{}'});toast('知识点已推送');await refresh()};
-document.querySelector('#approveUser').onclick=async()=>{await api(`/api/users/${selectedUser.id}/approve`,{method:'POST',body:'{}'});toast('已通过审核');await refresh()};
-document.querySelector('#rejectUser').onclick=async()=>{await api(`/api/users/${selectedUser.id}/reject`,{method:'POST',body:'{}'});toast('已拒绝申请');await refresh()};
-document.querySelector('#runPush').onclick=async()=>{const r=await api('/api/push/run',{method:'POST',body:'{}'});toast(`已向 ${r.sent} 位订阅用户推送`);await refresh()};
+function renderUsers(){
+  document.querySelector('#view-users').innerHTML=`
+    <section class="grid-2">
+      <div class="panel"><div class="panel-title"><h2>用户</h2><button id="addUser">添加测试用户</button></div><div class="panel-body user-list">
+        ${state.users.map(u=>`<button class="user-card ${selectedUser?.id===u.id?'active':''}" data-id="${u.id}"><span><b>${escapeHtml(u.name)}</b><small class="muted">${escapeHtml(u.channel_user_id)}</small></span><span class="badge ${u.subscription_status}">${statusLabel(u.subscription_status)}</span></button>`).join('')||'<div class="empty">还没有用户</div>'}
+      </div></div>
+      <div class="panel"><div class="panel-title"><h2>${selectedUser?escapeHtml(selectedUser.name):'用户详情'}</h2><div class="row-actions">${selectedUser?'<button id="approveUser">通过审核</button><button id="rejectUser">拒绝</button>':''}</div></div><div class="panel-body" id="userDetail">${selectedUser?'加载中':'请选择一个用户'}</div></div>
+    </section>`;
+  document.querySelectorAll('.user-card').forEach(el=>el.onclick=()=>selectUser(Number(el.dataset.id)));
+  document.querySelector('#addUser').onclick=addUser;
+  const approve=document.querySelector('#approveUser'); if(approve)approve.onclick=async()=>{await api(`/api/users/${selectedUser.id}/approve`,{method:'POST',body:'{}'});toast('已通过审核');await refresh()};
+  const reject=document.querySelector('#rejectUser'); if(reject)reject.onclick=async()=>{await api(`/api/users/${selectedUser.id}/reject`,{method:'POST',body:'{}'});toast('已拒绝');await refresh()};
+  if(selectedUser)renderUserDetail();
+}
+
+async function renderUserDetail(){
+  const [subscriptions, messages]=await Promise.all([api(`/api/users/${selectedUser.id}/subscriptions`),api(`/api/users/${selectedUser.id}/messages`)]);
+  state.subscriptions=subscriptions; state.messages=messages;
+  document.querySelector('#userDetail').innerHTML=`
+    <div class="stack">
+      <div><span class="muted">用户 ID</span><br>${escapeHtml(selectedUser.channel_user_id)}</div>
+      <div class="grid-2">${state.products.map(p=>subscriptionCard(p, subscriptions.find(s=>s.product_key===p.product_key))).join('')}</div>
+      <form id="messageForm" class="composer"><input id="messageInput" placeholder="模拟微信消息：来一个英语 / 今日早报 / 下一个"><button class="primary">发送</button></form>
+      <div class="quick">${['来一个英语','今日早报','下一个','暂停早报','A'].map(t=>`<button data-text="${t}">${t}</button>`).join('')}</div>
+      <div class="messages">${messages.slice(-12).map(m=>`<div class="message ${m.direction}">${escapeHtml(m.text)}<time>${m.direction==='in'?'用户':'Agent'} · ${m.created_at}</time></div>`).join('')||'<div class="empty">暂无互动</div>'}</div>
+    </div>`;
+  document.querySelectorAll('[data-open-product]').forEach(b=>b.onclick=async()=>{await api(`/api/users/${selectedUser.id}/subscriptions`,{method:'POST',body:JSON.stringify({product_key:b.dataset.openProduct,days:7})});toast('已开通 7 天试用');await refresh()});
+  document.querySelectorAll('[data-push-product]').forEach(b=>b.onclick=async()=>{await api(`/api/users/${selectedUser.id}/push`,{method:'POST',body:JSON.stringify({product_key:b.dataset.pushProduct})});toast('已推送');await refresh()});
+  document.querySelectorAll('[data-pause-product]').forEach(b=>b.onclick=async()=>{await api(`/api/users/${selectedUser.id}/subscriptions/${b.dataset.pauseProduct}`,{method:'POST',body:JSON.stringify({status:'paused'})});toast('已暂停');await refresh()});
+  document.querySelector('#messageForm').onsubmit=sendMessage;
+  document.querySelectorAll('.quick button').forEach(b=>b.onclick=()=>{document.querySelector('#messageInput').value=b.dataset.text;document.querySelector('#messageForm').requestSubmit()});
+}
+
+function subscriptionCard(product, sub){
+  return `<div class="subscription-card"><div><b>${escapeHtml(product.name)}</b><br><small class="muted">${escapeHtml(product.description||'')}</small></div>${sub?`<span><span class="badge ${sub.status}">${subscriptionLabel(sub.status)}</span> 推送 ${sub.preferred_hour}:00<br><small class="muted">试用至 ${sub.trial_ends_at||'-'} · 付费至 ${sub.paid_until||'-'}</small></span><div class="row-actions"><button data-push-product="${product.product_key}">推送</button><button data-pause-product="${product.product_key}">暂停</button></div>`:`<button class="primary" data-open-product="${product.product_key}">开通 7 天试用</button>`}</div>`;
+}
+
+function renderProducts(){
+  document.querySelector('#view-products').innerHTML=`<section class="panel"><div class="panel-title"><h2>Agent 产品</h2></div><div class="panel-body"><table class="table"><thead><tr><th>产品</th><th>默认时间</th><th>付费链接</th><th>状态</th></tr></thead><tbody>${state.products.map(p=>`<tr><td><b>${escapeHtml(p.name)}</b><br><span class="muted">${escapeHtml(p.product_key)} · ${escapeHtml(p.description||'')}</span></td><td>${p.default_push_hour}:00</td><td>${p.payment_url?`<a href="${escapeHtml(p.payment_url)}" target="_blank">查看</a>`:'未设置'}</td><td><span class="badge ${p.enabled?'active':'paused'}">${p.enabled?'启用':'停用'}</span></td></tr>`).join('')}</tbody></table></div></section>`;
+}
+
+function renderContent(){
+  document.querySelector('#view-content').innerHTML=`<section class="panel"><div class="panel-title"><h2>知识库</h2><button class="primary" id="newContent">新增内容</button></div><div class="panel-body grid-3">${state.content.map(c=>`<article class="content-card"><div class="content-meta"><span class="badge ${c.review_status}">${reviewLabel(c.review_status)}</span><span class="badge">${escapeHtml(c.product_name||c.product_key)}</span><span class="badge">${escapeHtml(c.content_type)}</span></div><h3>${escapeHtml(c.term)}</h3><p>${escapeHtml(c.meaning)}</p><small class="muted">${escapeHtml(c.topic)} ${c.source_url?' · 有来源':''}</small><div class="row-actions"><button data-edit-content="${c.id}">编辑</button>${c.review_status!=='approved'?`<button data-approve-content="${c.id}">通过</button>`:''}</div></article>`).join('')}</div></section>`;
+  document.querySelector('#newContent').onclick=()=>openContentEditor();
+  document.querySelectorAll('[data-edit-content]').forEach(b=>b.onclick=()=>openContentEditor(state.content.find(c=>c.id===Number(b.dataset.editContent))));
+  document.querySelectorAll('[data-approve-content]').forEach(b=>b.onclick=async()=>{const item=state.content.find(c=>c.id===Number(b.dataset.approveContent));await saveContent({...item,review_status:'approved'});toast('已通过审核');await refresh()});
+}
+
+function renderPush(){
+  document.querySelector('#view-push').innerHTML=`<section class="panel"><div class="panel-title"><h2>推送管理</h2><button class="primary" id="runPushNow">执行推送</button></div><div class="panel-body"><p>系统按每条订阅的推送时间执行。手动执行会向所有有效订阅尝试推送一条内容。</p><p class="muted">微信端支持「来一个英语」「今日早报」「下一个」「这个推过了」。</p></div></section>`;
+  document.querySelector('#runPushNow').onclick=runPush;
+}
+
+function renderMessages(){
+  document.querySelector('#view-messages').innerHTML=`<section class="panel"><div class="panel-title"><h2>互动记录</h2></div><div class="panel-body">${selectedUser?'<div id="messageOnly"></div>':'请先在用户管理中选择一个用户。'}</div></section>`;
+  if(selectedUser)api(`/api/users/${selectedUser.id}/messages`).then(messages=>{document.querySelector('#messageOnly').innerHTML=`<div class="messages">${messages.slice(-30).map(m=>`<div class="message ${m.direction}">${escapeHtml(m.text)}<time>${m.direction==='in'?'用户':'Agent'} · ${m.created_at}</time></div>`).join('')}</div>`});
+}
+
+function renderBilling(){
+  document.querySelector('#view-billing').innerHTML=`<section class="panel"><div class="panel-title"><h2>收费权益</h2></div><div class="panel-body stack"><p>第一版先做权益占位：每个产品可配置付费链接，用户订阅可设置试用、付费、暂停或过期。</p><p>默认试用期：7 天。真实支付后，把支付成功回调接到订阅权益更新即可。</p></div></section>`;
+}
+
+function statusLabel(status){return {pending:'待审核',active:'可服务',paused:'已暂停',unsubscribed:'已退订'}[status]||status}
+function subscriptionLabel(status){return {trial:'试用',paid:'已付费',active:'有效',paused:'已暂停',expired:'已过期'}[status]||status}
+function reviewLabel(status){return {pending:'待审核',approved:'已通过',rejected:'已拒绝'}[status]||status}
+async function selectUser(id){selectedUser=state.users.find(u=>u.id===id);setView('users')}
+function escapeHtml(text){const d=document.createElement('div');d.textContent=text??'';return d.innerHTML}
+async function addUser(){const n=Date.now().toString().slice(-5);await api('/api/users',{method:'POST',body:JSON.stringify({name:`测试用户 ${n}`,channel_user_id:`wx_demo_${n}`})});toast('已添加测试用户');await refresh()}
+async function sendMessage(e){e.preventDefault();const input=document.querySelector('#messageInput');const text=input.value.trim();if(!text)return;input.value='';await api(`/api/users/${selectedUser.id}/messages`,{method:'POST',body:JSON.stringify({text})});await refresh()}
+async function runPush(){const r=await api('/api/push/run',{method:'POST',body:'{}'});toast(`已推送 ${r.sent} 条订阅内容`);await refresh()}
+document.querySelectorAll('.ops-nav button').forEach(b=>b.onclick=()=>setView(b.dataset.view));
+document.querySelector('#runPush').onclick=runPush;
 document.querySelector('#logout').onclick=async()=>{await fetch('/api/logout',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'}).catch(()=>{});location.href='/login'};
+
+const contentDialog=document.querySelector('#contentDialog');
+const contentForm=document.querySelector('#contentForm');
+function openContentEditor(item=null){
+  editingContentId=item?.id||null;
+  contentForm.elements.product_key.innerHTML=state.products.map(p=>`<option value="${p.product_key}">${escapeHtml(p.name)}</option>`).join('');
+  const defaults={product_key:'ai_english',content_type:'knowledge_card',term:'',meaning:'',explanation:'',example_en:'',example_cn:'',question:'',options:'A. 已理解\nB. 不确定\nC. 稍后再看',answer:'A',difficulty:'1',topic:'General',review_status:'pending',enabled:'1',source_url:''};
+  const data=item?{...item,options:JSON.parse(item.options_json||'[]').join('\n')}:defaults;
+  Object.keys(defaults).forEach(k=>{if(contentForm.elements[k])contentForm.elements[k].value=data[k]??defaults[k]});
+  contentDialog.showModal();
+}
+async function saveContent(data){
+  const body={...data};
+  if(body.options_json&&!body.options)body.options=JSON.parse(body.options_json).join('\n');
+  const path=body.id?`/api/content/${body.id}`:'/api/content';
+  return api(path,{method:'POST',body:JSON.stringify(body)});
+}
+document.querySelector('#closeContent').onclick=()=>contentDialog.close();
+document.querySelector('#cancelContent').onclick=()=>contentDialog.close();
+contentForm.onsubmit=async e=>{
+  e.preventDefault();
+  const body={};
+  Array.from(contentForm.elements).forEach(el=>{if(el.name)body[el.name]=el.value});
+  if(editingContentId)body.id=editingContentId;
+  await saveContent(body);
+  contentDialog.close();toast('知识内容已保存');await refresh();
+};
 
 const wecomDialog=document.querySelector('#wecomDialog');
 const wecomForm=document.querySelector('#wecomForm');

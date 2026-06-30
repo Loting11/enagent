@@ -15,6 +15,29 @@ CREATE TABLE IF NOT EXISTS users (
     last_push_date TEXT,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+CREATE TABLE IF NOT EXISTS products (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    product_key TEXT UNIQUE NOT NULL,
+    name TEXT NOT NULL,
+    description TEXT NOT NULL DEFAULT '',
+    default_push_hour INTEGER NOT NULL DEFAULT 9,
+    payment_url TEXT NOT NULL DEFAULT '',
+    enabled INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS user_subscriptions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    product_key TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'trial',
+    preferred_hour INTEGER NOT NULL DEFAULT 9,
+    trial_ends_at TEXT,
+    paid_until TEXT,
+    current_content_id INTEGER,
+    last_push_date TEXT,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_id, product_key)
+);
 CREATE TABLE IF NOT EXISTS content_items (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     term TEXT UNIQUE NOT NULL,
@@ -27,7 +50,12 @@ CREATE TABLE IF NOT EXISTS content_items (
     answer TEXT NOT NULL,
     difficulty INTEGER NOT NULL,
     topic TEXT NOT NULL,
-    enabled INTEGER NOT NULL DEFAULT 1
+    enabled INTEGER NOT NULL DEFAULT 1,
+    product_key TEXT NOT NULL DEFAULT 'ai_english',
+    content_type TEXT NOT NULL DEFAULT 'knowledge_card',
+    review_status TEXT NOT NULL DEFAULT 'approved',
+    source_url TEXT NOT NULL DEFAULT '',
+    image_url TEXT NOT NULL DEFAULT ''
 );
 CREATE TABLE IF NOT EXISTS messages (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -84,17 +112,64 @@ class Database:
         import json
         with self.connect() as conn:
             conn.executescript(SCHEMA)
+            self._migrate(conn)
+            self._seed_products(conn)
             for item in content:
                 conn.execute(
                     """INSERT OR IGNORE INTO content_items
                     (term, meaning, explanation, example_en, example_cn, question,
-                     options_json, answer, difficulty, topic)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                     options_json, answer, difficulty, topic, product_key, content_type,
+                     review_status, source_url, image_url)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                     (item["term"], item["meaning"], item["explanation"],
                      item["example_en"], item["example_cn"], item["question"],
                      json.dumps(item["options"], ensure_ascii=False), item["answer"],
-                     item["difficulty"], item["topic"]),
+                     item["difficulty"], item["topic"], item.get("product_key", "ai_english"),
+                     item.get("content_type", "knowledge_card"),
+                     item.get("review_status", "approved"), item.get("source_url", ""),
+                     item.get("image_url", "")),
                 )
+
+    def _migrate(self, conn):
+        columns = {row["name"] for row in conn.execute("PRAGMA table_info(content_items)")}
+        additions = {
+            "product_key": "TEXT NOT NULL DEFAULT 'ai_english'",
+            "content_type": "TEXT NOT NULL DEFAULT 'knowledge_card'",
+            "review_status": "TEXT NOT NULL DEFAULT 'approved'",
+            "source_url": "TEXT NOT NULL DEFAULT ''",
+            "image_url": "TEXT NOT NULL DEFAULT ''",
+        }
+        for column, definition in additions.items():
+            if column not in columns:
+                conn.execute(f"ALTER TABLE content_items ADD COLUMN {column} {definition}")
+        conn.execute("UPDATE content_items SET product_key = 'ai_english' WHERE product_key = ''")
+        conn.execute("UPDATE content_items SET content_type = 'knowledge_card' WHERE content_type = ''")
+        conn.execute("UPDATE content_items SET review_status = 'approved' WHERE review_status = ''")
+
+    def _seed_products(self, conn):
+        products = [
+            (
+                "ai_english",
+                "AI 英语学习",
+                "围绕 AI 行业常用英文词汇和表达的每日学习服务。",
+                9,
+                "",
+            ),
+            (
+                "ai_briefing",
+                "AI 行业早报",
+                "面向 AI 从业者的行业动态、产品更新和趋势解读。",
+                8,
+                "",
+            ),
+        ]
+        for product in products:
+            conn.execute(
+                """INSERT OR IGNORE INTO products
+                (product_key, name, description, default_push_hour, payment_url)
+                VALUES (?, ?, ?, ?, ?)""",
+                product,
+            )
 
     def all(self, sql, params=()):
         with self.connect() as conn:
