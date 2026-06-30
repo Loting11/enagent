@@ -21,6 +21,25 @@ OPENCLAW_APPROVED_REPLY = """审核已通过，欢迎加入「AI 行业常用英
 回复「来一个」立即体验；回复「暂停」可随时暂停。"""
 
 
+def format_learning_push(content):
+    options = json.loads(content["options_json"])
+    return (
+        "今日 AI 英语\n"
+        f"{content['term']}\n\n"
+        "含义\n"
+        f"{content['meaning']}\n\n"
+        "说明\n"
+        f"{content['explanation']}\n\n"
+        "例句\n"
+        f"{content['example_en']}\n"
+        f"{content['example_cn']}\n\n"
+        "小测试\n"
+        f"{content['question']}\n\n"
+        + "\n".join(options)
+        + "\n\n回复 A / B / C 即可"
+    )
+
+
 class EnglishAgentService:
     def __init__(self, db, channel, agent):
         self.db = db
@@ -199,13 +218,7 @@ class EnglishAgentService:
         content = self._select_content(user)
         if not content:
             raise ValueError("没有可用知识点")
-        options = json.loads(content["options_json"])
-        message = (
-            f"今日 AI 英语：{content['term']}\n\n"
-            f"含义：{content['meaning']}\n{content['explanation']}\n\n"
-            f"例句：{content['example_en']}\n{content['example_cn']}\n\n"
-            f"小测试：{content['question']}\n" + "\n".join(options) + "\n\n直接回复 A、B 或 C。"
-        )
+        message = format_learning_push(content)
         try:
             self.channel.send_text(user, message)
             self.db.execute(

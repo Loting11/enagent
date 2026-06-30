@@ -6,7 +6,7 @@ from src.agent import AgentService
 from src.channel import MockWeComChannel
 from src.content import DEMO_CONTENT
 from src.db import Database
-from src.service import EnglishAgentService
+from src.service import EnglishAgentService, format_learning_push
 
 
 class AgentFlowTest(unittest.TestCase):
@@ -29,6 +29,20 @@ class AgentFlowTest(unittest.TestCase):
         item = self.db.one("SELECT * FROM content_items WHERE id = ?", (current,))
         reply = self.service.receive(user["id"], item["answer"])
         self.assertIn("回答正确", reply)
+
+    def test_learning_push_message_is_readable_in_wechat(self):
+        item = self.db.one("SELECT * FROM content_items ORDER BY id ASC LIMIT 1")
+        message = format_learning_push(item)
+
+        self.assertIn("今日 AI 英语\n", message)
+        self.assertIn("\n\n含义\n", message)
+        self.assertIn("\n\n说明\n", message)
+        self.assertIn("\n\n例句\n", message)
+        self.assertIn("\n\n小测试\n", message)
+        self.assertIn("\n\nA. ", message)
+        self.assertIn("\nB. ", message)
+        self.assertIn("\nC. ", message)
+        self.assertTrue(message.endswith("回复 A / B / C 即可"))
 
     def test_pause_blocks_scheduled_push(self):
         user = self.service.create_user("小红", "wx_test_2")
