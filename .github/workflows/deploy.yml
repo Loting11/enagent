@@ -86,8 +86,40 @@ jobs:
                 sudo ln -sf "$HOME/.local/bin/openclaw" /usr/local/bin/openclaw
               fi
             fi
-            if command -v npx >/dev/null 2>&1; then
-              npx -y @tencent-weixin/openclaw-weixin-cli install || true
+            if command -v openclaw >/dev/null 2>&1; then
+              openclaw plugins install @tencent-weixin/openclaw-weixin --force || true
+              openclaw plugins enable openclaw-weixin || true
+              openclaw config set gateway.mode local || true
+              openclaw config set gateway.bind loopback || true
+              openclaw config set gateway.port 19001 || true
+              if ! openclaw config get gateway.auth.token >/dev/null 2>&1; then
+                openclaw config set gateway.auth.mode token || true
+                openclaw config set gateway.auth.token "$(python3 -c "import secrets; print(secrets.token_urlsafe(32))")" || true
+              fi
+              MODEL_API_KEY="$(grep -E "^MODEL_API_KEY=" .env | cut -d= -f2- || true)"
+              if test -n "$MODEL_API_KEY"; then
+                printf "%s\n" \
+                  "{" \
+                  "  \"models\": {" \
+                  "    \"providers\": {" \
+                  "      \"deepseek\": {" \
+                  "        \"baseUrl\": \"https://api.deepseek.com\"," \
+                  "        \"auth\": \"api-key\"," \
+                  "        \"api\": \"openai-completions\"," \
+                  "        \"models\": [" \
+                  "          {\"id\": \"deepseek-chat\", \"name\": \"deepseek-chat\"}," \
+                  "          {\"id\": \"deepseek-reasoner\", \"name\": \"deepseek-reasoner\"}" \
+                  "        ]" \
+                  "      }" \
+                  "    }" \
+                  "  }" \
+                  "}" >/tmp/openclaw-models.patch.json
+                openclaw config patch --file /tmp/openclaw-models.patch.json || true
+                printf "%s\n" "$MODEL_API_KEY" | openclaw models auth paste-api-key --provider deepseek --profile-id deepseek:english-agent || true
+                openclaw models set deepseek/deepseek-chat || true
+              fi
+              openclaw gateway install --force || true
+              openclaw gateway start || openclaw gateway restart || true
             fi
             .venv/bin/pip install --disable-pip-version-check -q -r requirements.txt
             .venv/bin/python -m unittest discover -s tests -v
