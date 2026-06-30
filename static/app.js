@@ -168,9 +168,15 @@ const openclawForm=document.querySelector('#openclawForm');
 let openclawLoginTimer=null;
 
 function renderOpenclawLogin(result){
+  const panel=document.querySelector('#openclawOutputPanel');
   const output=document.querySelector('#openclawOutput');
-  output.hidden=false;
+  const hint=document.querySelector('#openclawOutputHint');
+  panel.hidden=false;
+  panel.classList.toggle('is-running', !!result.running);
+  hint.textContent=result.running?'二维码生成中，请用微信扫码完成绑定':'OpenClaw 输出结果';
   output.textContent=result.output||'等待 OpenClaw 输出二维码…';
+  output.scrollTop=0;
+  output.scrollLeft=0;
   if(!result.running&&openclawLoginTimer){
     clearInterval(openclawLoginTimer);openclawLoginTimer=null;
   }
@@ -178,7 +184,12 @@ function renderOpenclawLogin(result){
 
 async function pollOpenclawLogin(){
   try{renderOpenclawLogin(await api('/api/config/openclaw/login'));}
-  catch(error){document.querySelector('#openclawOutput').textContent=error.message;}
+  catch(error){
+    document.querySelector('#openclawOutputPanel').hidden=false;
+    document.querySelector('#openclawOutputPanel').classList.remove('is-running');
+    document.querySelector('#openclawOutputHint').textContent='OpenClaw 输出结果';
+    document.querySelector('#openclawOutput').textContent=error.message;
+  }
 }
 
 async function openOpenclawConfig(){
@@ -187,7 +198,8 @@ async function openOpenclawConfig(){
   openclawForm.elements.enabled.value=config.enabled?'true':'false';
   document.querySelector('#openclawStatus').innerHTML=`<span class="${config.cli_ready?'ready':''}">${config.cli_ready?'✓':'○'} OpenClaw CLI</span><span class="${config.callback_ready?'ready':''}">${config.callback_ready?'✓':'○'} 回调令牌</span><span class="${config.send_ready?'ready':''}">${config.send_ready?'✓':'○'} 主动发送</span>`;
   document.querySelector('#openclawCallbackUrl').textContent=config.callback_url;
-  document.querySelector('#openclawOutput').hidden=true;
+  document.querySelector('#openclawOutputPanel').hidden=true;
+  document.querySelector('#openclawOutputPanel').classList.remove('is-running');
   document.querySelector('#startOpenclawLogin').disabled=!config.cli_ready;
   document.querySelector('#startOpenclawLogin').title=config.cli_ready?'':'服务器未安装 OpenClaw，暂时不能生成二维码';
   openclawDialog.showModal();
@@ -207,12 +219,19 @@ document.querySelector('#stopOpenclawLogin').onclick=async()=>{
   if(openclawLoginTimer){clearInterval(openclawLoginTimer);openclawLoginTimer=null;}
 };
 document.querySelector('#checkOpenclaw').onclick=async()=>{
+  const panel=document.querySelector('#openclawOutputPanel');
   const output=document.querySelector('#openclawOutput');
-  output.hidden=false; output.textContent='正在检查 OpenClaw 状态…';
+  panel.hidden=false; panel.classList.add('is-running');
+  document.querySelector('#openclawOutputHint').textContent='正在检查 OpenClaw 状态';
+  output.textContent='正在检查 OpenClaw 状态…';
   try{
     const result=await api('/api/config/openclaw/status',{method:'POST',body:'{}'});
+    panel.classList.remove('is-running');
+    document.querySelector('#openclawOutputHint').textContent='OpenClaw 输出结果';
     output.textContent=result.output||'OpenClaw 状态正常';
   }catch(error){
+    panel.classList.remove('is-running');
+    document.querySelector('#openclawOutputHint').textContent='OpenClaw 输出结果';
     output.textContent=error.message;
   }
 };

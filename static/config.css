@@ -7,4 +7,13 @@ dialog form{padding:24px}.dialog-head,.dialog-actions{display:flex;align-items:c
 .callback{display:flex;flex-direction:column;gap:5px;margin:18px 0;padding:12px 14px;background:#f1f3ed;border-radius:10px;color:var(--muted);font-size:12px}.callback code{color:var(--ink);overflow-wrap:anywhere}.dialog-actions{justify-content:flex-end;gap:10px;border-top:1px solid var(--line);padding-top:18px}
 .integration-status{display:flex;gap:10px;margin-top:17px}.integration-status span{padding:5px 9px;border-radius:20px;background:#ecefe9;color:var(--muted);font-size:12px}.integration-status span.ready{background:#e4f2e8;color:var(--green)}
 .command-output{max-height:210px;overflow:auto;background:#17211b;color:#f4f1ea;border-radius:10px;padding:12px;font-size:11px;white-space:pre-wrap}
+#openclawDialog{width:min(1120px,calc(100% - 28px));max-height:calc(100vh - 28px);overflow:hidden}
+#openclawDialog form{max-height:calc(100vh - 28px);overflow:auto;display:grid;grid-template-rows:auto auto auto auto auto minmax(0,1fr) auto}
+.openclaw-output-panel{min-height:0;margin:18px 0;border:1px solid #26372d;border-radius:12px;background:#17211b;overflow:hidden}
+.openclaw-output-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 12px;border-bottom:1px solid rgba(255,255,255,.1);background:#203126;color:#f4f1ea}
+.openclaw-output-head span{font-size:13px;font-weight:700}.openclaw-output-head small{color:#b7c4bc;font-size:12px}
+.openclaw-output-panel.is-running .openclaw-output-head small{color:#d9ef70}
+#openclawOutput.command-output{width:100%;min-height:360px;max-height:min(62vh,620px);margin:0;border-radius:0;padding:18px;overflow:auto;font:9px/1 ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;letter-spacing:0;white-space:pre;tab-size:2}
+#openclawOutputPanel[hidden]{display:none}
 @media(max-width:800px){.form-grid{grid-template-columns:1fr}}
+@media(max-width:800px){#openclawDialog{width:calc(100% - 12px);max-height:calc(100vh - 12px)}#openclawDialog form{max-height:calc(100vh - 12px);padding:16px}.openclaw-output-head{align-items:flex-start;flex-direction:column;gap:3px}#openclawOutput.command-output{min-height:300px;max-height:56vh;font-size:8px;padding:12px}.dialog-actions{flex-wrap:wrap}.dialog-actions button{flex:1 1 132px}}
