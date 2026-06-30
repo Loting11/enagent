@@ -35,7 +35,7 @@ def format_learning_push(content):
         f"{content['example_cn']}\n\n"
         "小测试\n"
         f"{content['question']}\n\n"
-        + "\n".join(options)
+        + "\n\n".join(options)
         + "\n\n回复 A / B / C 即可"
     )
 

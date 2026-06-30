@@ -40,8 +40,8 @@ class AgentFlowTest(unittest.TestCase):
         self.assertIn("\n\n例句\n", message)
         self.assertIn("\n\n小测试\n", message)
         self.assertIn("\n\nA. ", message)
-        self.assertIn("\nB. ", message)
-        self.assertIn("\nC. ", message)
+        self.assertIn("\n\nB. ", message)
+        self.assertIn("\n\nC. ", message)
         self.assertTrue(message.endswith("回复 A / B / C 即可"))
 
     def test_pause_blocks_scheduled_push(self):
