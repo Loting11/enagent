@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>登录后台 · AI English Agent</title>
+  <link rel="stylesheet" href="/login.css">
+</head>
+<body>
+  <main class="login-shell">
+    <section class="brand-panel" aria-label="产品概览">
+      <div class="brand-mark">AI</div>
+      <p class="eyebrow">AI ENGLISH AGENT</p>
+      <h1>英语订阅助手后台</h1>
+      <p class="brand-copy">管理知识库、订阅用户、企微与微信 OpenClaw 入口。</p>
+      <div class="signal-grid">
+        <div><strong>100</strong><span>知识点</span></div>
+        <div><strong>WeCom</strong><span>官方应用</span></div>
+        <div><strong>OpenClaw</strong><span>微信入口</span></div>
+      </div>
+    </section>
+
+    <section class="login-card" aria-label="后台登录">
+      <div class="card-head">
+        <p class="eyebrow">ADMIN ACCESS</p>
+        <h2>登录管理台</h2>
+      </div>
+      <form id="loginForm" autocomplete="on">
+        <label>
+          <span>账号</span>
+          <input id="username" name="username" autocomplete="username" placeholder="请输入后台账号" required autofocus>
+        </label>
+        <label>
+          <span>密码</span>
+          <input id="password" name="password" type="password" autocomplete="current-password" placeholder="请输入后台密码" required>
+        </label>
+        <p id="loginError" class="error" role="alert" hidden></p>
+        <button id="loginButton" class="primary" type="submit">进入后台</button>
+      </form>
+      <p class="hint">登录后会保持一段时间在线，退出后台时可在右上角手动退出。</p>
+    </section>
+  </main>
+  <script src="/login.js"></script>
+</body>
+</html>

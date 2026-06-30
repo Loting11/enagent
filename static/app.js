@@ -3,8 +3,15 @@ let selectedUser = null;
 document.querySelector('#openSettings').onclick=()=>location.href='/admin-prototype.html';
 
 async function api(path, options={}) {
-  const response = await fetch(path, {headers:{'Content-Type':'application/json'}, ...options});
-  const data = await response.json();
+  const response = await fetch(path, {
+    ...options,
+    headers: {'Content-Type':'application/json', ...(options.headers || {})}
+  });
+  const data = await response.json().catch(() => ({}));
+  if (response.status === 401) {
+    location.href = `/login?next=${encodeURIComponent(location.pathname + location.search + location.hash)}`;
+    throw new Error('请先登录后台');
+  }
   if (!response.ok) throw new Error(data.error || '请求失败');
   return data;
 }
@@ -64,6 +71,7 @@ document.querySelector('#pushOne').onclick=async()=>{await api(`/api/users/${sel
 document.querySelector('#approveUser').onclick=async()=>{await api(`/api/users/${selectedUser.id}/approve`,{method:'POST',body:'{}'});toast('已通过审核');await refresh()};
 document.querySelector('#rejectUser').onclick=async()=>{await api(`/api/users/${selectedUser.id}/reject`,{method:'POST',body:'{}'});toast('已拒绝申请');await refresh()};
 document.querySelector('#runPush').onclick=async()=>{const r=await api('/api/push/run',{method:'POST',body:'{}'});toast(`已向 ${r.sent} 位订阅用户推送`);await refresh()};
+document.querySelector('#logout').onclick=async()=>{await fetch('/api/logout',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'}).catch(()=>{});location.href='/login'};
 
 const wecomDialog=document.querySelector('#wecomDialog');
 const wecomForm=document.querySelector('#wecomForm');

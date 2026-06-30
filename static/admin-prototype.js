@@ -2,8 +2,12 @@ const pageTitles = {overview:'总览',delivery:'推送规则',audience:'用户�
 const toast = document.querySelector('#prototypeToast');
 
 async function api(path, options={}){
-  const response=await fetch(path,{headers:{'Content-Type':'application/json'},...options});
-  const data=await response.json();
+  const response=await fetch(path,{...options,headers:{'Content-Type':'application/json',...(options.headers||{})}});
+  const data=await response.json().catch(()=>({}));
+  if(response.status===401){
+    location.href=`/login?next=${encodeURIComponent(location.pathname+location.search+location.hash)}`;
+    throw new Error('请先登录后台');
+  }
   if(!response.ok)throw new Error(data.error||'请求失败');
   return data;
 }

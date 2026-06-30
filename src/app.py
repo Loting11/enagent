@@ -13,7 +13,7 @@ import tempfile
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, quote, urlparse
 
 from agent import AgentService
 from channel import WeComChannel
@@ -26,6 +26,8 @@ from juhe import DEFAULT_API_URL, JuheClient, JuheError, juhe_event_key, parse_j
 
 
 ROOT = Path(__file__).resolve().parent.parent
+SESSION_COOKIE = "enagent_session"
+SESSION_MAX_AGE = 60 * 60 * 12
 
 
 def load_env():
@@ -386,11 +388,13 @@ class Handler(BaseHTTPRequestHandler):
         message = re.sub(r"([?&]token=)[^& ]+", r"\1[redacted]", message)
         print(f"[{self.log_date_time_string()}] {message}")
 
-    def _json(self, data, status=200):
+    def _json(self, data, status=200, headers=None):
         body = json.dumps(data, ensure_ascii=False).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
+        for key, value in (headers or {}).items():
+            self.send_header(key, value)
         self.end_headers()
         self.wfile.write(body)
 
@@ -402,11 +406,19 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
-    def _authorized(self):
+    def _admin_credentials(self):
+        return os.getenv("ADMIN_USERNAME", ""), os.getenv("ADMIN_PASSWORD", "")
+
+    def _valid_admin_credentials(self, supplied_user, supplied_password):
         username = os.getenv("ADMIN_USERNAME", "")
         password = os.getenv("ADMIN_PASSWORD", "")
         if not username or not password:
             return False
+        return hmac.compare_digest(supplied_user, username) and hmac.compare_digest(
+            supplied_password, password
+        )
+
+    def _basic_authorized(self):
         header = self.headers.get("Authorization", "")
         if not header.startswith("Basic "):
             return False
@@ -415,20 +427,73 @@ class Handler(BaseHTTPRequestHandler):
             supplied_user, supplied_password = decoded.split(":", 1)
         except (ValueError, UnicodeDecodeError):
             return False
-        return hmac.compare_digest(supplied_user, username) and hmac.compare_digest(
-            supplied_password, password
+        return self._valid_admin_credentials(supplied_user, supplied_password)
+
+    def _session_secret(self):
+        return os.getenv("SESSION_SECRET") or os.getenv("ADMIN_PASSWORD") or "english-agent-admin"
+
+    def _session_signature(self, issued_at):
+        username, _ = self._admin_credentials()
+        payload = f"{username}:{issued_at}".encode("utf-8")
+        return hmac.new(self._session_secret().encode("utf-8"), payload, hashlib.sha256).hexdigest()
+
+    def _cookies(self):
+        cookies = {}
+        for part in self.headers.get("Cookie", "").split(";"):
+            if "=" not in part:
+                continue
+            key, value = part.strip().split("=", 1)
+            cookies[key] = value
+        return cookies
+
+    def _session_authorized(self):
+        if not all(self._admin_credentials()):
+            return False
+        value = self._cookies().get(SESSION_COOKIE, "")
+        try:
+            issued_at, signature = value.split(".", 1)
+            issued = int(issued_at)
+        except (ValueError, TypeError):
+            return False
+        if time.time() - issued > SESSION_MAX_AGE:
+            return False
+        expected = self._session_signature(issued_at)
+        return hmac.compare_digest(signature, expected)
+
+    def _authorized(self):
+        return self._session_authorized() or self._basic_authorized()
+
+    def _cookie_security(self):
+        secure = self._public_origin().startswith("https://")
+        return "; Secure" if secure else ""
+
+    def _login_cookie(self):
+        issued_at = str(int(time.time()))
+        value = f"{issued_at}.{self._session_signature(issued_at)}"
+        return (
+            f"{SESSION_COOKIE}={value}; Max-Age={SESSION_MAX_AGE}; Path=/; "
+            f"HttpOnly; SameSite=Lax{self._cookie_security()}"
         )
+
+    def _clear_login_cookie(self):
+        return (
+            f"{SESSION_COOKIE}=; Max-Age=0; Path=/; "
+            f"HttpOnly; SameSite=Lax{self._cookie_security()}"
+        )
+
+    def _redirect(self, target):
+        self.send_response(302)
+        self.send_header("Location", target)
+        self.send_header("Content-Length", "0")
+        self.end_headers()
 
     def _require_auth(self):
         if self._authorized():
             return True
-        body = b"Authentication required"
-        self.send_response(401)
-        self.send_header("WWW-Authenticate", 'Basic realm="English Agent Admin"')
-        self.send_header("Content-Type", "text/plain; charset=utf-8")
-        self.send_header("Content-Length", str(len(body)))
-        self.end_headers()
-        self.wfile.write(body)
+        if urlparse(self.path).path.startswith("/api/"):
+            self._json({"error": "请先登录后台"}, 401)
+        else:
+            self._redirect(f"/login?next={quote(self.path or '/', safe='')}")
         return False
 
     def _body(self):
@@ -559,6 +624,12 @@ class Handler(BaseHTTPRequestHandler):
         try:
             if path == "/api/health":
                 return self._json({"ok": True})
+            if path in ("/login", "/login.html", "/login.css", "/login.js"):
+                return self._static("/login.html" if path == "/login" else path)
+            if path == "/api/session":
+                if self._authorized():
+                    return self._json({"authenticated": True})
+                return self._json({"authenticated": False}, 401)
             if path in ("/audio/voice-test.m4a", "/audio/voice-test.silk"):
                 return self._static(path)
             if path == "/wecom/callback":
@@ -606,6 +677,17 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(self._juhe_receive(parse_qs(parsed.query)))
             if path == "/openclaw/callback":
                 return self._json(self._openclaw_receive(parse_qs(parsed.query)))
+            if path == "/api/login":
+                body = self._body()
+                username = str(body.get("username", ""))
+                password = str(body.get("password", ""))
+                if not all(self._admin_credentials()):
+                    return self._json({"error": "后台账号尚未配置"}, 503)
+                if not self._valid_admin_credentials(username, password):
+                    return self._json({"error": "账号或密码不正确"}, 401)
+                return self._json({"ok": True}, headers={"Set-Cookie": self._login_cookie()})
+            if path == "/api/logout":
+                return self._json({"ok": True}, headers={"Set-Cookie": self._clear_login_cookie()})
             if not self._require_auth():
                 return
             body = self._body()
