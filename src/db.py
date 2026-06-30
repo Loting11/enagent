@@ -145,6 +145,13 @@ class Database:
         conn.execute("UPDATE content_items SET product_key = 'ai_english' WHERE product_key = ''")
         conn.execute("UPDATE content_items SET content_type = 'knowledge_card' WHERE content_type = ''")
         conn.execute("UPDATE content_items SET review_status = 'approved' WHERE review_status = ''")
+        conn.execute(
+            """INSERT OR IGNORE INTO user_subscriptions
+            (user_id, product_key, status, preferred_hour, current_content_id, last_push_date)
+            SELECT id, 'ai_english', 'active', preferred_hour, current_content_id, last_push_date
+            FROM users
+            WHERE subscription_status = 'active'"""
+        )
 
     def _seed_products(self, conn):
         products = [
