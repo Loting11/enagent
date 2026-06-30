@@ -97,6 +97,10 @@ jobs:
                 openclaw config set gateway.auth.token "$(python3 -c "import secrets; print(secrets.token_urlsafe(32))")" || true
               fi
               MODEL_API_KEY="$(grep -E "^MODEL_API_KEY=" .env | cut -d= -f2- || true)"
+              OPENCLAW_CALLBACK_TOKEN="$(grep -E "^OPENCLAW_CALLBACK_TOKEN=" .env | cut -d= -f2- || true)"
+              if test -n "$OPENCLAW_CALLBACK_TOKEN"; then
+                printf "{\"env\":{\"vars\":{\"ENGLISH_AGENT_OPENCLAW_CALLBACK_URL\":\"http://127.0.0.1:8080/openclaw/callback?token=%s\"}}}\n" "$OPENCLAW_CALLBACK_TOKEN" | openclaw config patch --stdin || true
+              fi
               if test -n "$MODEL_API_KEY"; then
                 printf "%s\n" \
                   "{" \
@@ -118,6 +122,7 @@ jobs:
                 printf "%s\n" "$MODEL_API_KEY" | openclaw models auth paste-api-key --provider deepseek --profile-id deepseek:english-agent || true
                 openclaw models set deepseek/deepseek-chat || true
               fi
+              python3 deploy/patch_openclaw_weixin_bridge.py || true
               openclaw gateway install --force || true
               openclaw gateway start || openclaw gateway restart || true
             fi
