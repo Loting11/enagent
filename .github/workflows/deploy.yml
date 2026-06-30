@@ -122,9 +122,9 @@ jobs:
                 printf "%s\n" "$MODEL_API_KEY" | openclaw models auth paste-api-key --provider deepseek --profile-id deepseek:english-agent || true
                 openclaw models set deepseek/deepseek-chat || true
               fi
-              python3 deploy/patch_openclaw_weixin_bridge.py || true
               openclaw gateway install --force || true
-              openclaw gateway start || openclaw gateway restart || true
+              python3 deploy/patch_openclaw_weixin_bridge.py || true
+              openclaw gateway restart || openclaw gateway start || true
             fi
             .venv/bin/pip install --disable-pip-version-check -q -r requirements.txt
             .venv/bin/python -m unittest discover -s tests -v
