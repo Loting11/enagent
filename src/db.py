@@ -38,6 +38,15 @@ CREATE TABLE IF NOT EXISTS user_subscriptions (
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(user_id, product_key)
 );
+CREATE TABLE IF NOT EXISTS openclaw_accounts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    account_id TEXT UNIQUE NOT NULL,
+    name TEXT NOT NULL DEFAULT '',
+    channel TEXT NOT NULL DEFAULT 'openclaw-weixin',
+    enabled INTEGER NOT NULL DEFAULT 1,
+    is_default INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
 CREATE TABLE IF NOT EXISTS content_items (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     term TEXT UNIQUE NOT NULL,

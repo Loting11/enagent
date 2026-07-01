@@ -16,6 +16,7 @@ BRIDGE_BLOCK = f"""
                 method: "POST",
                 headers: {{ "Content-Type": "application/json" }},
                 body: JSON.stringify({{
+                    account_id: deps.accountId,
                     sender: finalized.From,
                     text: englishAgentText,
                     name: "微信用户",
@@ -52,7 +53,13 @@ def main():
     target = candidates[-1]
     text = target.read_text(encoding="utf-8")
     if MARKER_START in text:
-        print(f"English Agent bridge already patched: {target}")
+        marker_start = text.index(MARKER_START)
+        start = text.rfind("\n", 0, marker_start) + 1
+        marker_end = text.index(MARKER_END, marker_start) + len(MARKER_END)
+        end = text.find("\n", marker_end)
+        end = len(text) if end == -1 else end + 1
+        target.write_text(text[:start] + BRIDGE_BLOCK.strip("\n") + text[end:], encoding="utf-8")
+        print(f"Updated English Agent bridge in {target}")
         return
 
     needle = '    logger.debug(`inbound context: ${redactBody(JSON.stringify(finalized))}`);\n'

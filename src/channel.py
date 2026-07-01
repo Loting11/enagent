@@ -69,7 +69,13 @@ class WeComChannel(MockWeComChannel):
         is_demo = channel_user_id.startswith("wx_demo_") or channel_user_id.startswith("mock:")
         result = {"ok": True, "channel": "mock"}
         if channel_user_id.startswith("openclaw:"):
-            result = self.openclaw_client.send_text(channel_user_id.split(":", 1)[1], text)
+            openclaw_parts = channel_user_id.split(":", 2)
+            account_id = None
+            target = openclaw_parts[1] if len(openclaw_parts) > 1 else ""
+            if len(openclaw_parts) == 3:
+                account_id = openclaw_parts[1]
+                target = openclaw_parts[2]
+            result = self.openclaw_client.send_text(target, text, account_id=account_id)
             result["channel"] = "openclaw"
         elif self.juhe_client.configured and not is_demo:
             result = self.juhe_client.send_text(channel_user_id, text)

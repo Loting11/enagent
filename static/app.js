@@ -302,6 +302,7 @@ async function openOpenclawConfig(){
   ['cli_path','channel','account_id','bot_name'].forEach(name=>openclawForm.elements[name].value=config[name]||'');
   openclawForm.elements.enabled.value=config.enabled?'true':'false';
   document.querySelector('#openclawStatus').innerHTML=`<span class="${config.cli_ready?'ready':''}">${config.cli_ready?'✓':'○'} OpenClaw CLI</span><span class="${config.callback_ready?'ready':''}">${config.callback_ready?'✓':'○'} 回调令牌</span><span class="${config.send_ready?'ready':''}">${config.send_ready?'✓':'○'} 主动发送</span>`;
+  renderOpenclawAccounts(config.accounts||[]);
   document.querySelector('#openclawCallbackUrl').textContent=config.callback_url;
   document.querySelector('#openclawOutputPanel').hidden=true;
   document.querySelector('#openclawOutputPanel').classList.remove('is-running');
@@ -312,6 +313,23 @@ async function openOpenclawConfig(){
   openclawDialog.showModal();
 }
 
+function renderOpenclawAccounts(accounts){
+  const box=document.querySelector('#openclawAccounts');
+  box.innerHTML=accounts.length?accounts.map(account=>`<div class="account-row"><div><b>${escapeHtml(account.name||account.account_id)}</b>${account.is_default?'<span class="badge active">默认</span>':''}<small>${escapeHtml(account.account_id)} · ${escapeHtml(account.channel)}</small></div><div class="row-actions"><button type="button" data-use-account="${escapeHtml(account.account_id)}">填入</button><button type="button" data-default-account="${escapeHtml(account.account_id)}">设默认</button></div></div>`).join(''):'<div class="empty">还没有保存微信 bot 账号。扫码后把账号 ID 保存到这里。</div>';
+  box.querySelectorAll('[data-use-account]').forEach(button=>button.onclick=()=>{
+    const account=accounts.find(item=>item.account_id===button.dataset.useAccount);
+    if(!account)return;
+    openclawForm.elements.account_id.value=account.account_id;
+    openclawForm.elements.bot_name.value=account.name||'';
+    openclawForm.elements.channel.value=account.channel||'openclaw-weixin';
+  });
+  box.querySelectorAll('[data-default-account]').forEach(button=>button.onclick=async()=>{
+    await api(`/api/config/openclaw/accounts/${encodeURIComponent(button.dataset.defaultAccount)}`,{method:'POST',body:'{}'});
+    toast('默认微信 bot 已更新');
+    await openOpenclawConfig();
+  });
+}
+
 document.querySelector('#openOpenclaw').onclick=()=>openOpenclawConfig().catch(e=>toast(e.message));
 document.querySelector('#closeOpenclaw').onclick=()=>openclawDialog.close();
 document.querySelector('#cancelOpenclaw').onclick=()=>openclawDialog.close();
@@ -320,6 +338,19 @@ document.querySelector('#startOpenclawLogin').onclick=async()=>{
   renderOpenclawLogin(await api('/api/config/openclaw/login/start',{method:'POST',body:JSON.stringify({account_id:accountId})}));
   if(openclawLoginTimer)clearInterval(openclawLoginTimer);
   openclawLoginTimer=setInterval(pollOpenclawLogin,1600);
+};
+document.querySelector('#saveOpenclawAccount').onclick=async()=>{
+  const accountId=openclawForm.elements.account_id.value.trim();
+  if(!accountId)return toast('请先填写微信账号 ID');
+  await api('/api/config/openclaw/accounts',{method:'POST',body:JSON.stringify({
+    account_id:accountId,
+    name:openclawForm.elements.bot_name.value.trim()||accountId,
+    channel:openclawForm.elements.channel.value.trim()||'openclaw-weixin',
+    enabled:true,
+    is_default:false
+  })});
+  toast('微信 bot 账号已保存');
+  await openOpenclawConfig();
 };
 document.querySelector('#stopOpenclawLogin').onclick=async()=>{
   renderOpenclawLogin(await api('/api/config/openclaw/login/stop',{method:'POST',body:'{}'}));

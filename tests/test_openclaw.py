@@ -52,6 +52,23 @@ class OpenClawClientTest(unittest.TestCase):
         self.assertIn("--message", command)
         self.assertIn("hello", command)
 
+    def test_send_text_can_override_account(self):
+        runner = FakeRunner()
+        client = OpenClawClient(
+            cli_path="/bin/openclaw",
+            channel="openclaw-weixin",
+            account_id="default-bot",
+            enabled=True,
+            runner=runner,
+        )
+
+        client.send_text("user-123", "hello", account_id="second-bot")
+
+        command = runner.calls[0][0]
+        self.assertIn("--account", command)
+        self.assertIn("second-bot", command)
+        self.assertNotIn("default-bot", command)
+
     def test_login_command_can_target_channel_and_account(self):
         client = OpenClawClient(
             cli_path="/bin/sh",
@@ -101,6 +118,34 @@ class OpenClawChannelTest(unittest.TestCase):
         message = db.one("SELECT * FROM messages WHERE user_id = 1")
         self.assertEqual(message["kind"], "text")
         self.assertEqual(message["text"], "hello")
+
+    def test_openclaw_user_ids_can_include_account_id(self):
+        temp = tempfile.TemporaryDirectory()
+        self.addCleanup(temp.cleanup)
+        db = Database(os.path.join(temp.name, "test.db"))
+        db.initialize([])
+        runner = FakeRunner()
+        channel = WeComChannel(
+            db,
+            openclaw_client=OpenClawClient(
+                cli_path="/bin/openclaw",
+                channel="openclaw-weixin",
+                account_id="default-bot",
+                enabled=True,
+                runner=runner,
+            ),
+        )
+        user = {"id": 1, "channel_user_id": "openclaw:second-bot:user-123"}
+        db.execute(
+            "INSERT INTO users (id, name, channel_user_id) VALUES (1, '微信用户', 'openclaw:second-bot:user-123')"
+        )
+
+        channel.send_text(user, "hello")
+
+        command = runner.calls[0][0]
+        self.assertIn("second-bot", command)
+        self.assertIn("user-123", command)
+        self.assertNotIn("default-bot", command)
 
 
 if __name__ == "__main__":

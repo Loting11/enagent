@@ -105,12 +105,16 @@
         <label>微信账号 ID<input name="account_id" autocomplete="off" placeholder="扫码登录后生成的 accountId"></label>
       </div>
       <div id="openclawStatus" class="integration-status"></div>
+      <div class="openclaw-account-pool">
+        <div class="panel-title"><h2>微信 bot 账号池</h2><button type="button" id="saveOpenclawAccount">保存为账号</button></div>
+        <div id="openclawAccounts" class="account-list"></div>
+      </div>
       <div class="callback"><span>OpenClaw agent 转发到此回调地址</span><code id="openclawCallbackUrl"></code></div>
       <div id="openclawOutputPanel" class="openclaw-output-panel" hidden>
         <div class="openclaw-output-head"><span id="openclawOutputTitle">二维码输出</span><small id="openclawOutputHint">请用微信扫码完成绑定</small></div>
         <pre id="openclawOutput" class="command-output"></pre>
       </div>
-      <div class="dialog-actions"><button type="button" id="startOpenclawLogin">生成登录二维码</button><button type="button" id="stopOpenclawLogin">停止</button><button type="button" id="checkOpenclaw">检查状态</button><button type="button" id="cancelOpenclaw">取消</button><button class="primary" type="submit">保存配置</button></div>
+      <div class="dialog-actions"><button type="button" id="startOpenclawLogin">生成登录二维码</button><button type="button" id="stopOpenclawLogin">停止</button><button type="button" id="checkOpenclaw">检查状态</button><button type="button" id="cancelOpenclaw">取消</button><button class="primary" type="submit">保存默认配置</button></div>
     </form>
   </dialog>
   <div id="toast"></div>

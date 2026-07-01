@@ -13,7 +13,7 @@ import tempfile
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import parse_qs, quote, urlparse
+from urllib.parse import parse_qs, quote, unquote, urlparse
 
 from agent import AgentService
 from channel import WeComChannel
@@ -251,6 +251,7 @@ def save_juhe_config(values, allow_sensitive=False):
 
 
 def openclaw_config(public_origin=""):
+    ensure_default_openclaw_account()
     defaults = {
         "enabled": "false",
         "cli_path": DEFAULT_CLI_PATH,
@@ -272,7 +273,80 @@ def openclaw_config(public_origin=""):
     result["cli_path"] = resolve_cli_path(result["cli_path"])
     result["cli_ready"] = cli_available(result["cli_path"])
     result["send_ready"] = bool(result["enabled"] and result["cli_ready"] and result["account_id"])
+    result["accounts"] = openclaw_accounts()
     return result
+
+
+def ensure_default_openclaw_account():
+    account_id = os.getenv("OPENCLAW_ACCOUNT_ID", "").strip()
+    if not account_id:
+        return
+    existing = db.one("SELECT * FROM openclaw_accounts WHERE account_id = ?", (account_id,))
+    if existing:
+        return
+    db.execute(
+        """INSERT INTO openclaw_accounts
+        (account_id, name, channel, enabled, is_default)
+        VALUES (?, ?, ?, 1, 1)""",
+        (
+            account_id,
+            os.getenv("OPENCLAW_BOT_NAME", "微信 Bot"),
+            os.getenv("OPENCLAW_CHANNEL", "openclaw-weixin"),
+        ),
+    )
+
+
+def openclaw_accounts():
+    ensure_default_openclaw_account()
+    return db.all("SELECT * FROM openclaw_accounts ORDER BY is_default DESC, id DESC")
+
+
+def save_openclaw_account(values):
+    account_id = " ".join(str(values.get("account_id", "")).splitlines()).strip()
+    if not account_id:
+        raise ValueError("微信账号 ID 不能为空")
+    name = " ".join(str(values.get("name", "")).splitlines()).strip() or account_id
+    channel = " ".join(str(values.get("channel", "")).splitlines()).strip() or os.getenv("OPENCLAW_CHANNEL", "openclaw-weixin")
+    enabled = 1 if str(values.get("enabled", "true")).lower() in ("1", "true", "yes", "on") else 0
+    is_default = 1 if str(values.get("is_default", "")).lower() in ("1", "true", "yes", "on") else 0
+    existing = db.one("SELECT * FROM openclaw_accounts WHERE account_id = ?", (account_id,))
+    if existing:
+        db.execute(
+            """UPDATE openclaw_accounts
+            SET name = ?, channel = ?, enabled = ?, is_default = CASE WHEN ? THEN 1 ELSE is_default END
+            WHERE account_id = ?""",
+            (name, channel, enabled, is_default, account_id),
+        )
+    else:
+        db.execute(
+            """INSERT INTO openclaw_accounts
+            (account_id, name, channel, enabled, is_default)
+            VALUES (?, ?, ?, ?, ?)""",
+            (account_id, name, channel, enabled, is_default),
+        )
+    if is_default:
+        db.execute("UPDATE openclaw_accounts SET is_default = CASE WHEN account_id = ? THEN 1 ELSE 0 END", (account_id,))
+        save_env_updates({
+            "OPENCLAW_ACCOUNT_ID": account_id,
+            "OPENCLAW_CHANNEL": channel,
+            "OPENCLAW_BOT_NAME": name,
+        })
+        service.channel.openclaw_client = OpenClawClient()
+    return db.one("SELECT * FROM openclaw_accounts WHERE account_id = ?", (account_id,))
+
+
+def set_default_openclaw_account(account_id):
+    account = db.one("SELECT * FROM openclaw_accounts WHERE account_id = ?", (account_id,))
+    if not account:
+        raise ValueError("微信账号不存在")
+    db.execute("UPDATE openclaw_accounts SET is_default = CASE WHEN account_id = ? THEN 1 ELSE 0 END", (account_id,))
+    save_env_updates({
+        "OPENCLAW_ACCOUNT_ID": account["account_id"],
+        "OPENCLAW_CHANNEL": account["channel"],
+        "OPENCLAW_BOT_NAME": account["name"],
+    })
+    service.channel.openclaw_client = OpenClawClient()
+    return db.one("SELECT * FROM openclaw_accounts WHERE account_id = ?", (account_id,))
 
 
 def save_openclaw_config(values):
@@ -291,6 +365,14 @@ def save_openclaw_config(values):
         updates["OPENCLAW_CALLBACK_TOKEN"] = secrets.token_urlsafe(32)
     if updates:
         save_env_updates(updates)
+    if updates.get("OPENCLAW_ACCOUNT_ID"):
+        save_openclaw_account({
+            "account_id": updates["OPENCLAW_ACCOUNT_ID"],
+            "name": updates.get("OPENCLAW_BOT_NAME", os.getenv("OPENCLAW_BOT_NAME", "微信 Bot")),
+            "channel": updates.get("OPENCLAW_CHANNEL", os.getenv("OPENCLAW_CHANNEL", "openclaw-weixin")),
+            "enabled": "true",
+            "is_default": "true",
+        })
     service.channel.openclaw_client = OpenClawClient()
     return openclaw_config()
 
@@ -379,9 +461,10 @@ def process_juhe_contact_change(event_key):
         print(f"Juhe contact callback processing error: {type(exc).__name__}")
 
 
-def process_openclaw_message(event_key, sender, text, name=None):
+def process_openclaw_message(event_key, sender, text, name=None, account_id=""):
     try:
-        service.receive_from_channel(f"openclaw:{sender}", text, name=name)
+        channel_user_id = f"openclaw:{account_id}:{sender}" if account_id else f"openclaw:{sender}"
+        service.receive_from_channel(channel_user_id, text, name=name)
         db.finish_callback_event(event_key)
     except Exception as exc:
         db.finish_callback_event(event_key, str(exc)[:500])
@@ -610,16 +693,18 @@ class Handler(BaseHTTPRequestHandler):
         text = str(payload.get("text") or payload.get("message") or "").strip()
         name = str(payload.get("name") or payload.get("display_name") or "微信用户").strip()
         message_id = str(payload.get("message_id") or payload.get("id") or "").strip()
+        account_id = str(payload.get("account_id") or payload.get("accountId") or payload.get("account") or "").strip()
         if not sender or not text:
             raise OpenClawError("OpenClaw 回调缺少 sender 或 text")
-        event_key = "openclaw:{}:{}".format(
+        event_key = "openclaw:{}:{}:{}".format(
+            account_id or "default",
             sender,
             message_id or hashlib.sha256(f"{sender}:{text}:{time.time_ns()}".encode("utf-8")).hexdigest(),
         )
         if db.claim_callback_event(event_key):
             threading.Thread(
                 target=process_openclaw_message,
-                args=(event_key, sender, text, name),
+                args=(event_key, sender, text, name, account_id),
                 daemon=True,
             ).start()
         return {"code": 0, "message": "ok"}
@@ -656,6 +741,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(juhe_config())
             if path == "/api/config/openclaw":
                 return self._json(openclaw_config(self._public_origin()))
+            if path == "/api/config/openclaw/accounts":
+                return self._json(openclaw_accounts())
             if path == "/api/config/openclaw/status":
                 return self._json({"ok": True, "output": OpenClawClient().status()})
             if path == "/api/config/openclaw/login":
@@ -763,12 +850,17 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(save_juhe_config(body, allow_sensitive=secure))
             if path == "/api/config/openclaw":
                 return self._json(save_openclaw_config(body))
+            if path == "/api/config/openclaw/accounts":
+                return self._json(save_openclaw_account(body), 201)
             if path == "/api/config/openclaw/status":
                 return self._json({"ok": True, "output": OpenClawClient().status()})
             if path == "/api/config/openclaw/login/start":
                 return self._json(openclaw_login_start(body.get("account_id", "")))
             if path == "/api/config/openclaw/login/stop":
                 return self._json(openclaw_login_stop())
+            parts = path.strip("/").split("/")
+            if len(parts) == 5 and parts[:4] == ["api", "config", "openclaw", "accounts"]:
+                return self._json(set_default_openclaw_account(unquote(parts[4])))
             if path == "/api/config/voice":
                 forwarded_proto = self.headers.get("X-Forwarded-Proto", "").lower()
                 trust_proxy = os.getenv("TRUST_PROXY_HEADERS", "").lower() in ("1", "true", "yes")

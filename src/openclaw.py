@@ -97,10 +97,11 @@ class OpenClawClient:
             args.extend(["--account", account_id])
         return args
 
-    def send_text(self, target, text):
-        if not self.configured:
+    def send_text(self, target, text, account_id=None):
+        send_account_id = account_id or self.account_id
+        if not (self.enabled and self.cli_path and send_account_id):
             raise OpenClawError("OpenClaw 微信入口尚未启用或缺少账号 ID")
-        args = ["message", "send", "--account", self.account_id, "--target", str(target), "--message", str(text)]
+        args = ["message", "send", "--account", send_account_id, "--target", str(target), "--message", str(text)]
         if self.channel:
             args.extend(["--channel", self.channel])
         output = self._run(args)
