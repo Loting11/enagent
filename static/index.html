@@ -112,7 +112,11 @@
       <div class="callback"><span>OpenClaw agent 转发到此回调地址</span><code id="openclawCallbackUrl"></code></div>
       <div id="openclawOutputPanel" class="openclaw-output-panel" hidden>
         <div class="openclaw-output-head"><span id="openclawOutputTitle">二维码输出</span><small id="openclawOutputHint">请用微信扫码完成绑定</small></div>
-        <pre id="openclawOutput" class="command-output"></pre>
+        <div id="openclawQrPanel" class="openclaw-qr-panel" hidden><pre id="openclawQr" aria-label="微信登录二维码"></pre></div>
+        <details id="openclawLogDetails" class="openclaw-log-details">
+          <summary>查看 OpenClaw 输出</summary>
+          <pre id="openclawOutput" class="command-output"></pre>
+        </details>
       </div>
       <div class="dialog-actions"><button type="button" id="startOpenclawLogin">生成登录二维码</button><button type="button" id="stopOpenclawLogin">停止</button><button type="button" id="checkOpenclaw">检查状态</button><button type="button" id="cancelOpenclaw">取消</button><button class="primary" type="submit">保存默认配置</button></div>
     </form>

@@ -283,18 +283,45 @@ const openclawDialog=document.querySelector('#openclawDialog');
 const openclawForm=document.querySelector('#openclawForm');
 let openclawLoginTimer=null;
 
+function cleanTerminalOutput(output){
+  return String(output||'').replace(/\x1B\[[0-?]*[ -/]*[@-~]/g,'').replace(/\r/g,'');
+}
+
+function extractTerminalQr(output){
+  const groups=[];
+  let group=[];
+  const finish=()=>{if(group.length>=4)groups.push(group);group=[];};
+  cleanTerminalOutput(output).split('\n').forEach(line=>{
+    const isQrLine=/^[█▀▄ ]+$/.test(line)&&/[█▀▄]/.test(line)&&line.length>=12;
+    if(isQrLine)group.push(line); else finish();
+  });
+  finish();
+  const best=groups.sort((a,b)=>b.length-a.length)[0];
+  return best?best.join('\n'):'';
+}
+
 function renderOpenclawLogin(result){
   const panel=document.querySelector('#openclawOutputPanel');
+  const qrPanel=document.querySelector('#openclawQrPanel');
+  const qr=document.querySelector('#openclawQr');
+  const logs=document.querySelector('#openclawLogDetails');
   const output=document.querySelector('#openclawOutput');
   const title=document.querySelector('#openclawOutputTitle');
   const hint=document.querySelector('#openclawOutputHint');
+  const text=cleanTerminalOutput(result.output);
+  const qrText=extractTerminalQr(text);
   panel.hidden=false;
   panel.classList.toggle('is-running', !!result.running);
-  title.textContent='二维码输出';
-  hint.textContent=result.running?'二维码生成中，请用微信扫码完成绑定':'OpenClaw 输出结果';
-  output.textContent=result.output||'等待 OpenClaw 输出二维码…';
+  openclawDialog.classList.toggle('is-scanning', !!qrText);
+  qrPanel.hidden=!qrText;
+  qr.textContent=qrText;
+  logs.open=!qrText;
+  title.textContent=qrText?'微信扫码绑定':'二维码输出';
+  hint.textContent=qrText?'请使用微信扫描上方二维码':(result.running?'二维码生成中，请稍候':'OpenClaw 输出结果');
+  output.textContent=text||'等待 OpenClaw 输出二维码…';
   output.scrollTop=0;
   output.scrollLeft=0;
+  if(qrText)requestAnimationFrame(()=>panel.scrollIntoView({block:'start',behavior:'smooth'}));
   if(!result.running&&openclawLoginTimer){
     clearInterval(openclawLoginTimer);openclawLoginTimer=null;
   }
@@ -305,6 +332,9 @@ async function pollOpenclawLogin(){
   catch(error){
     document.querySelector('#openclawOutputPanel').hidden=false;
     document.querySelector('#openclawOutputPanel').classList.remove('is-running');
+    openclawDialog.classList.remove('is-scanning');
+    document.querySelector('#openclawQrPanel').hidden=true;
+    document.querySelector('#openclawLogDetails').open=true;
     document.querySelector('#openclawOutputHint').textContent='OpenClaw 输出结果';
     document.querySelector('#openclawOutput').textContent=error.message;
   }
@@ -318,6 +348,9 @@ async function openOpenclawConfig(){
   renderOpenclawAccounts(config.accounts||[]);
   document.querySelector('#openclawCallbackUrl').textContent=config.callback_url;
   document.querySelector('#openclawOutputPanel').hidden=true;
+  openclawDialog.classList.remove('is-scanning');
+  document.querySelector('#openclawQrPanel').hidden=true;
+  document.querySelector('#openclawLogDetails').open=false;
   document.querySelector('#openclawOutputPanel').classList.remove('is-running');
   document.querySelector('#openclawOutputTitle').textContent='二维码输出';
   document.querySelector('#openclawOutputHint').textContent='请用微信扫码完成绑定';
@@ -371,8 +404,10 @@ document.querySelector('#stopOpenclawLogin').onclick=async()=>{
 };
 document.querySelector('#checkOpenclaw').onclick=async()=>{
   const panel=document.querySelector('#openclawOutputPanel');
+  const qrPanel=document.querySelector('#openclawQrPanel');
+  const logs=document.querySelector('#openclawLogDetails');
   const output=document.querySelector('#openclawOutput');
-  panel.hidden=false; panel.classList.add('is-running');
+  panel.hidden=false; panel.classList.add('is-running'); qrPanel.hidden=true; logs.open=true; openclawDialog.classList.remove('is-scanning');
   document.querySelector('#openclawOutputTitle').textContent='状态检查';
   document.querySelector('#openclawOutputHint').textContent='正在检查 OpenClaw 状态';
   output.textContent='正在检查 OpenClaw 状态…';
