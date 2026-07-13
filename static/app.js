@@ -2,6 +2,19 @@ let selectedUser = null;
 let state = {stats:{}, users:[], products:[], content:[], subscriptions:[], messages:[]};
 let editingContentId = null;
 
+function errorMessage(error) {
+  return error?.message || String(error || '操作失败');
+}
+
+window.addEventListener('unhandledrejection', event => {
+  event.preventDefault();
+  toast(errorMessage(event.reason));
+});
+
+window.addEventListener('error', event => {
+  if (event.message) toast(event.message);
+});
+
 async function api(path, options={}) {
   const response = await fetch(path, {
     ...options,
@@ -85,8 +98,8 @@ function renderUsers(){
     </section>`;
   document.querySelectorAll('.user-card').forEach(el=>el.onclick=()=>selectUser(Number(el.dataset.id)));
   document.querySelector('#addUser').onclick=addUser;
-  const approve=document.querySelector('#approveUser'); if(approve)approve.onclick=async()=>{await api(`/api/users/${selectedUser.id}/approve`,{method:'POST',body:'{}'});toast('已通过审核');await refresh()};
-  const reject=document.querySelector('#rejectUser'); if(reject)reject.onclick=async()=>{await api(`/api/users/${selectedUser.id}/reject`,{method:'POST',body:'{}'});toast('已拒绝');await refresh()};
+  const approve=document.querySelector('#approveUser'); if(approve)approve.onclick=async()=>{const result=await api(`/api/users/${selectedUser.id}/approve`,{method:'POST',body:'{}'});toast(result.warning||'已通过审核');await refresh()};
+  const reject=document.querySelector('#rejectUser'); if(reject)reject.onclick=async()=>{const result=await api(`/api/users/${selectedUser.id}/reject`,{method:'POST',body:'{}'});toast(result.warning||'已拒绝');await refresh()};
   if(selectedUser)renderUserDetail();
 }
 

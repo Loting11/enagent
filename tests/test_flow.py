@@ -9,6 +9,11 @@ from src.db import Database
 from src.service import EnglishAgentService, format_learning_push
 
 
+class FailingChannel(MockWeComChannel):
+    def send_text(self, user, text):
+        raise RuntimeError("channel offline")
+
+
 class AgentFlowTest(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
@@ -68,6 +73,19 @@ class AgentFlowTest(unittest.TestCase):
         self.assertEqual(approved["subscription_status"], "active")
         self.service.receive(approved["id"], "来一个")
         self.assertIsNotNone(self.service.get_user(approved["id"])["current_content_id"])
+
+    def test_admin_approval_persists_when_notification_fails(self):
+        service = EnglishAgentService(self.db, FailingChannel(self.db), AgentService())
+        user_id = self.db.execute(
+            "INSERT INTO users (name, channel_user_id) VALUES ('微信用户', 'openclaw:user-fail')"
+        )
+
+        approved = service.approve_user(user_id)
+
+        self.assertEqual(approved["subscription_status"], "active")
+        self.assertIn("通知发送失败", approved["warning"])
+        messages = service.messages(user_id)
+        self.assertIn("通知发送失败", messages[-1]["text"])
 
     def test_user_can_subscribe_to_multiple_products(self):
         user = self.service.create_user("小林", "wx_multi")

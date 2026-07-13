@@ -264,6 +264,17 @@ class EnglishAgentService:
     def users(self):
         return self.db.all("SELECT * FROM users ORDER BY id DESC")
 
+    def _notify_best_effort(self, user, text):
+        try:
+            self.channel.send_text(user, text)
+            return None
+        except Exception as exc:
+            self.db.execute(
+                "INSERT INTO messages (user_id, direction, text, kind) VALUES (?, 'out', ?, 'text')",
+                (user["id"], f"通知发送失败：{str(exc)[:300]}"),
+            )
+            return f"用户状态已更新，但通知发送失败：{str(exc)[:120]}"
+
     def approve_user(self, user_id):
         user = self.get_user(user_id)
         if not user:
@@ -272,7 +283,9 @@ class EnglishAgentService:
             "UPDATE users SET subscription_status = 'active' WHERE id = ?", (user_id,)
         )
         user = self.get_user(user_id)
-        self.channel.send_text(user, OPENCLAW_APPROVED_REPLY)
+        warning = self._notify_best_effort(user, OPENCLAW_APPROVED_REPLY)
+        if warning:
+            user["warning"] = warning
         return user
 
     def reject_user(self, user_id):
@@ -284,7 +297,9 @@ class EnglishAgentService:
             (user_id,),
         )
         user = self.get_user(user_id)
-        self.channel.send_text(user, "你的申请暂未通过。如需重新申请，请联系管理员。")
+        warning = self._notify_best_effort(user, "你的申请暂未通过。如需重新申请，请联系管理员。")
+        if warning:
+            user["warning"] = warning
         return user
 
     def messages(self, user_id):
